@@ -1,6 +1,8 @@
 import openai
 from openai import OpenAI
-import pyaudio
+import numpy as np
+import sounddevice as sd
+import soundfile as sf
 from dotenv import load_dotenv
 import os
 
@@ -11,15 +13,11 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 def list_audio_devices():
-    p = pyaudio.PyAudio()
     print("Available audio devices:")
-    info = p.get_host_api_info_by_index(0)
-    num_devices = info.get('deviceCount')
-    # List all available devices, and mark output devices
-    for i in range(0, num_devices):
-        if p.get_device_info_by_index(i).get('maxOutputChannels') > 0:
-            print(f"Device index {i}: {p.get_device_info_by_index(i).get('name')}")
-    p.terminate()
+    devices = sd.query_devices()
+    for index, device in enumerate(devices):
+        if device['max_output_channels'] > 0:
+            print(f"Device index {index}: {device['name']}")
 
 def stream_audio_to_virtual_mic(text, voice="fable", device_index=None):
 
@@ -36,49 +34,22 @@ def stream_audio_to_virtual_mic(text, voice="fable", device_index=None):
     )
 
 
-    # Set up PyAudio
-    p = pyaudio.PyAudio()
     if device_index is None:
         device_index = int(input("Enter the device index: "))
         
-    stream = p.open(format=pyaudio.paInt16,
-                    channels=1,
-                    rate=22050,  # Adjust the rate to match the audio format
-                    output=True,
-                    output_device_index=device_index)
+    # Load the binary audio content into a numpy array
+    audio_data = np.frombuffer(response.content, dtype=np.int16)
 
-        # Stream audio chunks to virtual microphone
-    try:
-        for chunk in response.iter_lines():
-            stream.write(chunk)
+    # Set the samplerate assumed from OpenAI's API (check documentation for exact rate)
+    sample_rate = 22050  # or 44100, depending on the API's output format
 
-        ##write to text file for testing
-        with open("test_output.wav", "wb") as f:
-            f.write(response.content)
+    # Play audio
+    sd.play(audio_data, sample_rate, device=device_index)
+    sd.wait()  # Wait until the audio has finished playing
 
-    finally:
-        # Ensure resources are cleaned up
-        stream.stop_stream()
-        stream.close()
-        p.terminate()
+    sf.write('captured_audio.wav', audio_data, sample_rate)
         
-    """
-    # Stream audio chunks to virtual microphone
-    try:
-        # Ensure you are handling the response's binary content correctly
-        # Adjust the method to access binary data as per the latest library version or response object
-        audio_data = response.content  # This might need adjustment based on actual response object methods
-        stream.write(audio_data)
 
-        ##write to text file for testing
-        with open("test_output.wav", "wb") as f:
-            f.write(response.content)
-
-    finally:
-        stream.stop_stream()
-        stream.close()
-        p.terminate()
-    """
 
 if __name__ == "__main__":
     import sys

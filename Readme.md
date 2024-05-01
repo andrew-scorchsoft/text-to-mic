@@ -6,13 +6,15 @@
 
 ##Windows
 
-pip install pyaudio
+pip install numpy
+pip install sounddevice
 pip install python-dotenv
 
 
 ##Mac
 
-brew install portaudio
+pip install numpy
+pip install sounddevice
 pip install python-dotenv
 
 
