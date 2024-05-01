@@ -11,7 +11,6 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-version_number = "1.0.0"
 
 class Application(tk.Tk):
 
@@ -57,6 +56,8 @@ class Application(tk.Tk):
         help_menu = Menu(self.menubar, tearoff=0)
         self.menubar.add_cascade(label="Help", menu=help_menu)
         help_menu.add_command(label="How to Use", command=self.show_instructions)
+        help_menu.add_command(label="Terms of Use and Licence", command=self.show_terms_of_use)
+        
 
     def initialize_gui(self):
         self.device_index = tk.StringVar(self)
@@ -109,9 +110,11 @@ class Application(tk.Tk):
         info_label.bind("<Button-1>", lambda e: self.open_scorchsoft())
 
         #Software version
-        version_label = tk.Label(main_frame, text=f"Version: {version_number}")
+        version_label = tk.Label(main_frame, text=f"Version: 1.0.0")
         version_label.grid(column=0, row=8, columnspan=2, pady=(0, 10))
 
+    
+    
     def open_scorchsoft(self, event=None):
         webbrowser.open('https://www.scorchsoft.com')
 
@@ -119,7 +122,7 @@ class Application(tk.Tk):
     def show_instructions(self):
         instruction_window = tk.Toplevel(self)
         instruction_window.title("How to Use")
-        instruction_window.geometry("500x600")  # Width x Height
+        instruction_window.geometry("500x700")  # Width x Height
 
         instructions = """How to Use Scorchsoft Text to Mic:
 
@@ -130,6 +133,9 @@ This tool creates a virtual microphone on your Windows computer or Mac. Once ins
 2. Open the Text to Mic app by Scorchsoft, and input your OpenAPI key. How to set up an API key:
 https://platform.openai.com/docs/quickstart/account-setup
 (note that this may require you to add your billing details to OpenAI's playground before a key can be generated)
+
+WARNING: This will use your OpenAI key to generate audio via the OpenAI API, which will incur charges per use. So please make sure to carefully monitor use.
+OpenAI pricing: openai.com/pricing
 
 3. Choose a voice that you prefer for the speech synthesis.
 
@@ -144,6 +150,38 @@ https://platform.openai.com/docs/quickstart/account-setup
 6. You can change the API key at any time under the 'Settings' menu.
 
 This tool was brought to you by Scorchsoft - We build custom apps to your requirements. Please contact us if you have a requirement for a custom app project.
+
+If you like this tool then please help us out and give us a backlink to help others find it at:
+https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
+
+Please also make sure you read the Terms of use and licence statement before using this app.
+"""
+        
+        tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=480).pack(padx=10, pady=10)
+        
+        # Add a button to close the window
+        ttk.Button(instruction_window, text="Close", command=instruction_window.destroy).pack(pady=(10, 0))
+
+
+    def show_terms_of_use(self):
+        instruction_window = tk.Toplevel(self)
+        instruction_window.title("Terms of Use")
+        instruction_window.geometry("500x700")  # Width x Height
+
+        instructions = """Disclaimer of Warranties
+Text to Mic is provided "as is" and on an "as available" basis, without any warranties of any kind, either express or implied. Scorchsoft Ltd expressly disclaims all warranties, whether express, implied, statutory, or otherwise, including but not limited to the implied warranties of merchantability, fitness for a particular purpose, and non-infringement. We do not warrant that the software will function uninterrupted, that it is error-free, or that any errors or defects will be corrected.
+
+Limitation of Liability
+In no event will Scorchsoft Ltd be liable for any indirect, incidental, special, consequential, or punitive damages resulting from or related to your use or inability to use Text to Mic, including but not limited to damages for loss of profits, goodwill, use, data, or other intangible losses, even if Scorchsoft Ltd has been advised of the possibility of such damages.
+
+Use at Your Own Risk
+By using Text to Mic, you acknowledge and agree that you assume full responsibility for your use of the software, and that any information you send or receive during your use of the software may not be secure and may be intercepted or later acquired by unauthorized parties. Use of Text to Mic is at your sole risk.
+
+License Agreement
+Users are granted a non-exclusive, revocable license to use Text to Mic solely for personal or commercial purposes. While the software remains the intellectual property of Scorchsoft Ltd., users are permitted to share the software with others under the condition that they attribute it to Scorchsoft Ltd. explicitly. This license does not grant users any ownership rights in the software and prohibits the creation of derivative works or the sale of the software. Users must ensure that Scorchsoft Ltd. is credited appropriately when sharing or demonstrating the software in any public or private setting.
+
+Text to Mic was made by Scorchsoft.com. If you like this tool then please help us out and give us a backlink to help others find it at:
+https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
 """
         
         tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=480).pack(padx=10, pady=10)
@@ -155,11 +193,10 @@ This tool was brought to you by Scorchsoft - We build custom apps to your requir
 
 
 
-
     def get_api_key(self):
 
         self.show_instructions()  # Show the "How to Use" modal after setting the key
-        
+
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:  # No API key found in the environment
             api_key = simpledialog.askstring("API Key", "Enter your OpenAI API Key:", parent=self)
