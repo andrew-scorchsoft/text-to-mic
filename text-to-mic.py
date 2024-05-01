@@ -3,11 +3,15 @@ from tkinter import ttk, messagebox, simpledialog, Menu
 import os
 import pyaudio
 import wave
+import webbrowser
 from openai import OpenAI
 from dotenv import load_dotenv
 
+
 # Load environment variables
 load_dotenv()
+
+version_number = "1.0.0"
 
 class Application(tk.Tk):
 
@@ -60,31 +64,51 @@ class Application(tk.Tk):
         device_names = list(available_devices.keys())
 
 
-
-        main_frame = ttk.Frame(self, padding="10")
+        main_frame = ttk.Frame(self, padding="20")
         main_frame.grid(column=0, row=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
-        ttk.Label(main_frame, text="Scorchsoft Text to Mic").grid(column=0, row=0, columnspan=2, pady=(0, 10))
-        ttk.Label(main_frame, text="This tool uses OpenAI's text-to-speech to stream audio.").grid(column=0, row=1, columnspan=2)
+        #ttk.Label(main_frame, text="Scorchsoft Text to Mic").grid(column=0, row=0, columnspan=2, pady=(0, 10))  # Increased padding after the title
+        #ttk.Label(main_frame, text="This tool uses OpenAI's text-to-speech to stream audio.").grid(column=0, row=1, columnspan=2, pady=(0, 10))
 
-        ttk.Label(main_frame, text="Please select primary audio device:").grid(column=0, row=2, sticky=tk.W)
+
+        # Voice Selection
+        self.voice_var = tk.StringVar()
+        voices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
+        ttk.Label(main_frame, text="Choose a Voice").grid(column=0, row=0, sticky=tk.W, pady=(10, 10))  # Padding added
+        voice_menu = ttk.OptionMenu(main_frame, self.voice_var,'fable', *voices)
+        voice_menu.grid(column=1, row=0, sticky=tk.W)
+
+        # Select Primary audio device
+        ttk.Label(main_frame, text="Primary Playback Device:").grid(column=0, row=2, sticky=tk.W, pady=(10, 10))  # Padding added
         primary_device_menu = ttk.OptionMenu(main_frame, self.device_index, *self.available_devices.keys())
-        primary_device_menu.grid(column=1, row=2, sticky=tk.W, padx=(10, 0))
+        primary_device_menu.grid(column=1, row=2, sticky=tk.W)
 
-        ttk.Label(main_frame, text="Please select secondary audio device (optional):").grid(column=0, row=3, sticky=tk.W)
+        # Select Secondary audio device
+        ttk.Label(main_frame, text="Secondary Playback Device (optional):").grid(column=0, row=3, sticky=tk.W, pady=(5, 10))  # Padding added
         secondary_device_menu = ttk.OptionMenu(main_frame, self.device_index_2, "None", *self.available_devices.keys())
-        secondary_device_menu.grid(column=1, row=3, sticky=tk.W, padx=(10, 0))
+        secondary_device_menu.grid(column=1, row=3, sticky=tk.W)
 
-        ttk.Label(main_frame, text="Text to read:").grid(column=0, row=4, sticky=tk.W, pady=(10, 0))
+        # Specify the text to read
+        ttk.Label(main_frame, text="Text to Read:").grid(column=0, row=4, sticky=tk.W, pady=(10, 0))
         self.text_input = tk.Text(main_frame, height=10, width=50)
-        self.text_input.grid(column=0, row=5, columnspan=2, pady=(0, 10))
+        self.text_input.grid(column=0, row=5, columnspan=2, pady=(0, 20))  # Padding added before submit button
 
-        submit_button = ttk.Button(main_frame, text="Submit", command=self.submit_text)
-        submit_button.grid(column=0, row=6, columnspan=2)
+        submit_button = ttk.Button(main_frame, text="Play Audio", command=self.submit_text)
+        submit_button.grid(column=0, row=6, columnspan=2, pady=(0, 20))
 
+        #Credits
+        info_label = tk.Label(main_frame, text="This tool was created by Scorchsoft.com app development", fg="blue", cursor="hand2")
+        info_label.grid(column=0, row=7, columnspan=2, pady=(0, 10))
+        info_label.bind("<Button-1>", lambda e: self.open_scorchsoft())
 
+        #Software version
+        version_label = tk.Label(main_frame, text=f"Version: {version_number}")
+        version_label.grid(column=0, row=8, columnspan=2, pady=(0, 10))
+
+    def open_scorchsoft(self, event=None):
+        webbrowser.open('https://www.scorchsoft.com')
 
 
     def get_api_key(self):
@@ -116,7 +140,10 @@ class Application(tk.Tk):
         return devices
 
     def submit_text(self):
+
         text = self.text_input.get("1.0", tk.END).strip()
+        selected_voice = self.voice_var.get()
+
         if not text:
             messagebox.showinfo("Error", "Please enter some text to synthesize.")
             return
@@ -135,7 +162,7 @@ class Application(tk.Tk):
 
             response = self.client.audio.speech.create(
                 model="tts-1",
-                voice="fable",
+                voice=selected_voice,
                 input=text,
                 response_format='wav'
             )
