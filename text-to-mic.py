@@ -40,21 +40,45 @@ def stream_audio_to_virtual_mic(text, voice="fable", device_index=None):
     p = pyaudio.PyAudio()
     if device_index is None:
         device_index = int(input("Enter the device index: "))
+        
     stream = p.open(format=pyaudio.paInt16,
                     channels=1,
                     rate=22050,  # Adjust the rate to match the audio format
                     output=True,
                     output_device_index=device_index)
 
-    # Stream audio chunks to virtual microphone
+        # Stream audio chunks to virtual microphone
     try:
-        for chunk in response.iter_chunks():
+        for chunk in response.iter_lines():
             stream.write(chunk)
+
+        ##write to text file for testing
+        with open("test_output.wav", "wb") as f:
+            f.write(response.content)
+
     finally:
         # Ensure resources are cleaned up
         stream.stop_stream()
         stream.close()
         p.terminate()
+        
+    """
+    # Stream audio chunks to virtual microphone
+    try:
+        # Ensure you are handling the response's binary content correctly
+        # Adjust the method to access binary data as per the latest library version or response object
+        audio_data = response.content  # This might need adjustment based on actual response object methods
+        stream.write(audio_data)
+
+        ##write to text file for testing
+        with open("test_output.wav", "wb") as f:
+            f.write(response.content)
+
+    finally:
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
+    """
 
 if __name__ == "__main__":
     import sys
