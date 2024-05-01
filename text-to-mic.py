@@ -53,6 +53,11 @@ class Application(tk.Tk):
         self.menubar.add_cascade(label="Playback", menu=playback_menu)
         playback_menu.add_command(label="Play Last Audio", command=self.play_last_audio)
 
+        # Help menu
+        help_menu = Menu(self.menubar, tearoff=0)
+        self.menubar.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label="How to Use", command=self.show_instructions)
+
     def initialize_gui(self):
         self.device_index = tk.StringVar(self)
         self.device_index_2 = tk.StringVar(self)
@@ -111,17 +116,57 @@ class Application(tk.Tk):
         webbrowser.open('https://www.scorchsoft.com')
 
 
+    def show_instructions(self):
+        instruction_window = tk.Toplevel(self)
+        instruction_window.title("How to Use")
+        instruction_window.geometry("500x600")  # Width x Height
+
+        instructions = """How to Use Scorchsoft Text to Mic:
+
+1. Install VB-Cable if you haven't already
+https://vb-audio.com/Cable/
+This tool creates a virtual microphone on your Windows computer or Mac. Once installed you can then trigger audio to be played on this virual cable.
+
+2. Open the Text to Mic app by Scorchsoft, and input your OpenAPI key. How to set up an API key:
+https://platform.openai.com/docs/quickstart/account-setup
+(note that this may require you to add your billing details to OpenAI's playground before a key can be generated)
+
+3. Choose a voice that you prefer for the speech synthesis.
+
+4. Select a playback device. I recommend you select one device to be your headphones, and the other the virtuall microphone installed above (Which is usually labelled "Cable Input (VB-Audio))"
+
+3. Enter the text in the provided text area that you want to convert to speech.
+
+4. Click 'Submit' to hear the spoken version of your text.
+
+5. The 'Play Last Audio' button can be used to replay the last generated speech output.
+
+6. You can change the API key at any time under the 'Settings' menu.
+
+This tool was brought to you by Scorchsoft - We build custom apps to your requirements. Please contact us if you have a requirement for a custom app project.
+"""
+        
+        tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=480).pack(padx=10, pady=10)
+        
+        # Add a button to close the window
+        ttk.Button(instruction_window, text="Close", command=instruction_window.destroy).pack(pady=(10, 0))
+
+
+
+
+
+
     def get_api_key(self):
+
+        self.show_instructions()  # Show the "How to Use" modal after setting the key
+        
         api_key = os.getenv("OPENAI_API_KEY")
-        
-
-        if not api_key:  # Only ask if .env has no API key
-            api_key = simpledialog.askstring("API Key", "Enter your OpenAI API Key:")
-
-        if api_key:
-                print(f"\nAPI Key: {api_key }\n")
+        if not api_key:  # No API key found in the environment
+            api_key = simpledialog.askstring("API Key", "Enter your OpenAI API Key:", parent=self)
+            if api_key:
                 self.save_api_key(api_key)
-        
+                messagebox.showinfo("API Key Set", "The OpenAI API Key has been updated successfully.")
+                
         return api_key
 
     def save_api_key(self, api_key):
