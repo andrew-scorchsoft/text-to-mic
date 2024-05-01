@@ -2,6 +2,8 @@
 
 This script uses OpenAI to convert text to speech, and then speak that speech over a virtual microphone.
 
+![Example Image 1](images/app-screenshot-v1-0-0.png)
+
 ## Running the GUI version
 
 1. Install VB-Cable if you haven't already
