@@ -2,6 +2,34 @@
 
 This script uses OpenAI to convert text to speech, and then speak that speech over a virtual microphone.
 
+## Running the GUI version
+
+1. Install VB-Cable if you haven't already
+https://vb-audio.com/Cable/
+This tool creates a virtual microphone on your Windows computer or Mac. Once installed you can then trigger audio to be played on this virual cable.
+
+2. Open the Text to Mic app by Scorchsoft, and input your OpenAPI key. How to set up an API key:
+https://platform.openai.com/docs/quickstart/account-setup
+(note that this may require you to add your billing details to OpenAI's playground before a key can be generated)
+
+3. Choose a voice that you prefer for the speech synthesis.
+
+4. Select a playback device. I recommend you select one device to be your headphones, and the other the virtuall microphone installed above (Which is usually labelled "Cable Input (VB-Audio))"
+
+3. Enter the text in the provided text area that you want to convert to speech.
+
+4. Click 'Submit' to hear the spoken version of your text.
+
+5. The 'Play Last Audio' button can be used to replay the last generated speech output.
+
+6. You can change the API key at any time under the 'Settings' menu.
+
+This tool was brought to you by Scorchsoft - We build custom apps to your requirements. Please contact us if you have a requirement for a custom app project.
+
+## Running the CLI Version
+
+run the executable or "python text-to-mic.py"
+
 ## 1) Install VB-Cable:
 https://vb-audio.com/Cable/
 
@@ -42,5 +70,17 @@ pip install python-dotenv
 pip install wave
 pip install pydub
 
+# Making an installer
 
+## Windows
 
+pip install --upgrade pip  # Ensure pip is updated
+pip install pyinstaller   # Install PyInstaller
+
+python -m PyInstaller --onefile --windowed text-to-mic.py
+
+## Mac
+
+brew install python
+pip3 install pyinstaller
+pyinstaller --onefile --windowed text-to-mic.py

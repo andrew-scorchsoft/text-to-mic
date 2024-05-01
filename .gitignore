@@ -2,3 +2,5 @@
 .env_backup
 *.wav
 *.mp3
+build/
+dist/
