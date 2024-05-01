@@ -1,132 +1,247 @@
-import openai
-from openai import OpenAI
+import tkinter as tk
+from tkinter import ttk, messagebox, simpledialog, Menu
+import os
 import pyaudio
 import wave
-import threading
+from openai import OpenAI
 from dotenv import load_dotenv
-import os
 
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
 
-# Set up your OpenAI API key from the environment variable
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+class Application(tk.Tk):
 
-def list_audio_devices():
-    p = pyaudio.PyAudio()
-    print("Available audio devices:")
-    info = p.get_host_api_info_by_index(0)
-    num_devices = info.get('deviceCount')
-    # List all available devices, and mark output devices
-    for i in range(0, num_devices):
-        if p.get_device_info_by_index(i).get('maxOutputChannels') > 0:
-            print(f"Device index {i}: {p.get_device_info_by_index(i).get('name')}")
-    p.terminate()
+    def __init__(self):
+        super().__init__()
+        self.title("Scorchsoft Text to Mic")
+        self.style = ttk.Style(self)
+        self.style.theme_use('clam')  # Using a theme for a better look
+        
+        # Ensure API Key is loaded or prompted for before initializing GUI components
+        self.api_key = self.get_api_key()
+        if not self.api_key:
+            messagebox.showinfo("API Key Needed", "Please provide your OpenAI API Key.")
+            self.destroy()
+            return
+        
+        self.client = OpenAI(api_key=self.api_key)
+
+        # Initializing device index variables before they are used
+        self.device_index = tk.StringVar(self)
+        self.device_index_2 = tk.StringVar(self)
+
+        self.available_devices = self.get_audio_devices()  # Load audio devices
+
+        self.create_menu()
+        self.initialize_gui()
+
+    def create_menu(self):
+        self.menubar = Menu(self)
+        self.config(menu=self.menubar)
+
+        # File or settings menu
+        settings_menu = Menu(self.menubar, tearoff=0)
+        self.menubar.add_cascade(label="Settings", menu=settings_menu)
+        settings_menu.add_command(label="Change API Key", command=self.change_api_key)
+
+        # Playback menu
+        playback_menu = Menu(self.menubar, tearoff=0)
+        self.menubar.add_cascade(label="Playback", menu=playback_menu)
+        playback_menu.add_command(label="Play Last Audio", command=self.play_last_audio)
+
+    def initialize_gui(self):
+        self.device_index = tk.StringVar(self)
+        self.device_index_2 = tk.StringVar(self)
+        self.device_index.set("Select Device")
+        self.device_index_2.set("None")
+
+        # Fetching available devices
+        available_devices = self.get_audio_devices()
+        device_names = list(available_devices.keys())
 
 
-def play_saved_audio(file_path, device_index=None):
-    # Open the saved audio file
-    wf = wave.open(file_path, 'rb')
 
-    print(f"Playing audio to device {device_index}")
+        main_frame = ttk.Frame(self, padding="10")
+        main_frame.grid(column=0, row=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
 
-    # Setup PyAudio
-    p = pyaudio.PyAudio()
+        ttk.Label(main_frame, text="Scorchsoft Text to Mic").grid(column=0, row=0, columnspan=2, pady=(0, 10))
+        ttk.Label(main_frame, text="This tool uses OpenAI's text-to-speech to stream audio.").grid(column=0, row=1, columnspan=2)
 
-    try:
-        stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
-                        channels=wf.getnchannels(),
-                        rate=wf.getframerate(),
-                        output=True,
-                        output_device_index=device_index)
-        data = wf.readframes(1024)
-        while data:
-            stream.write(data)
-            data = wf.readframes(1024)
-    except Exception as e:
-        print(f"Error playing audio on device {device_index}: {e}")
-    finally:
-        stream.stop_stream()
-        stream.close()
-        wf.close()
+        ttk.Label(main_frame, text="Please select primary audio device:").grid(column=0, row=2, sticky=tk.W)
+        primary_device_menu = ttk.OptionMenu(main_frame, self.device_index, *self.available_devices.keys())
+        primary_device_menu.grid(column=1, row=2, sticky=tk.W, padx=(10, 0))
+
+        ttk.Label(main_frame, text="Please select secondary audio device (optional):").grid(column=0, row=3, sticky=tk.W)
+        secondary_device_menu = ttk.OptionMenu(main_frame, self.device_index_2, "None", *self.available_devices.keys())
+        secondary_device_menu.grid(column=1, row=3, sticky=tk.W, padx=(10, 0))
+
+        ttk.Label(main_frame, text="Text to read:").grid(column=0, row=4, sticky=tk.W, pady=(10, 0))
+        self.text_input = tk.Text(main_frame, height=10, width=50)
+        self.text_input.grid(column=0, row=5, columnspan=2, pady=(0, 10))
+
+        submit_button = ttk.Button(main_frame, text="Submit", command=self.submit_text)
+        submit_button.grid(column=0, row=6, columnspan=2)
+
+
+
+
+    def get_api_key(self):
+        api_key = os.getenv("OPENAI_API_KEY")
+        
+
+        if not api_key:  # Only ask if .env has no API key
+            api_key = simpledialog.askstring("API Key", "Enter your OpenAI API Key:")
+
+        if api_key:
+                print(f"\nAPI Key: {api_key }\n")
+                self.save_api_key(api_key)
+        
+        return api_key
+
+    def save_api_key(self, api_key):
+        with open('.env', 'w') as f:
+            f.write(f"OPENAI_API_KEY={api_key}\n")
+        load_dotenv()
+
+    def get_audio_devices(self):
+        p = pyaudio.PyAudio()
+        devices = {}
+        for i in range(p.get_device_count()):
+            info = p.get_device_info_by_index(i)
+            if info['maxOutputChannels'] > 0:  # Filter for output-capable devices
+                devices[info['name']] = i
         p.terminate()
+        return devices
 
-#Plays to multiple device indexes at the same time
-def play_audio_multiplexed(file_paths, device_indices):
-    p = pyaudio.PyAudio()
-    streams = []
-    
-    # Open all files and start all streams
-    for file_path, device_index in zip(file_paths, device_indices):
-        wf = wave.open(file_path, 'rb')
-        stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
-                        channels=wf.getnchannels(),
-                        rate=wf.getframerate(),
-                        output=True,
-                        output_device_index=device_index)
-        streams.append((stream, wf))
-    
-    # Play interleaved
-    active_streams = len(streams)
-    while active_streams > 0:
-        for stream, wf in streams:
-            data = wf.readframes(1024)
-            if data:
-                stream.write(data)
+    def submit_text(self):
+        text = self.text_input.get("1.0", tk.END).strip()
+        if not text:
+            messagebox.showinfo("Error", "Please enter some text to synthesize.")
+            return
+        
+        # Convert device names to indices
+        primary_index = self.available_devices.get(self.device_index.get(), None)
+        secondary_index = self.available_devices.get(self.device_index_2.get(), None) if self.device_index_2.get() != "None" else None
+
+        if primary_index is None:
+            messagebox.showerror("Error", "Primary device not selected or unavailable.")
+            return
+        
+        print(f"Primary Index: {primary_index}, Secondary Index: {secondary_index}")
+
+        try:
+
+            response = self.client.audio.speech.create(
+                model="tts-1",
+                voice="fable",
+                input=text,
+                response_format='wav'
+            )
+            self.last_audio_file = "last_output.wav"
+            response.stream_to_file(self.last_audio_file)
+
+            #Play to either two or a single stream
+            if primary_index and secondary_index != "None" and secondary_index is not None:
+                self.play_audio_multiplexed([self.last_audio_file, self.last_audio_file],
+                                            [primary_index, secondary_index])
             else:
-                stream.stop_stream()
-                stream.close()
-                wf.close()
-                active_streams -= 1
-    
-    p.terminate()
-    
-def stream_audio_to_virtual_mic(text, voice="fable", device_index=None, device_index_2=None):
-    response = client.audio.speech.create(
-        model="tts-1",
-        voice=voice,
-        input=text,
-        response_format='wav'
-    )
+                self.play_audio_multiplexed([self.last_audio_file],
+                                            [primary_index])
 
-    #This can either stream to one device index at a time, or, via multiplexing
-    #it can stream to two similtaneously to prevent lag playing in sequence
-    if device_index_2 is not None:
-        file_path_1 = "output1.wav"
-        file_path_2 = "output2.wav"
-        response.stream_to_file(file_path_1)
-        response.stream_to_file(file_path_2)
-        play_audio_multiplexed([file_path_1, file_path_2], [device_index, device_index_2])
-    else:
-        file_path_1 = "output1.wav"
-        response.stream_to_file(file_path_1)
-        play_saved_audio(file_path_1, device_index)
 
-    return "";
+        except Exception as e:
+            messagebox.showerror("API Error", f"Failed to generate audio: {str(e)}")
 
- 
+    def play_audio_multiplexed(self, file_paths, device_indices):
+
+        p = pyaudio.PyAudio()
+        streams = []
+        
+        try:
+            # Open all files and start all streams
+            for file_path, device_index in zip(file_paths, device_indices):
+                wf = wave.open(file_path, 'rb')
+                stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
+                                channels=wf.getnchannels(),
+                                rate=wf.getframerate(),
+                                output=True,
+                                output_device_index=int(device_index))
+                streams.append((stream, wf))
+
+            # Play interleaved
+            active_streams = len(streams)
+            while active_streams > 0:
+                for stream, wf in streams:
+                    data = wf.readframes(1024)
+                    if data:
+                        stream.write(data)
+                    else:
+                        stream.stop_stream()
+                        stream.close()
+                        wf.close()
+                        streams.remove((stream, wf))
+                        active_streams -= 1
+        except Exception as e:
+            messagebox.showerror("Playback Error", f"Error during multiplexed playback: {e}")
+        finally:
+            p.terminate()
+
+
+    def play_last_audio(self):
+
+
+
+        if hasattr(self, 'last_audio_file'):
+            primary_index = self.available_devices.get(self.device_index.get(), None)
+            secondary_index = self.available_devices.get(self.device_index_2.get(), None) if self.device_index_2.get() != "None" else None
+
+            # Check if a secondary device is selected
+            if primary_index and secondary_index != "None" and secondary_index is not None:
+                self.play_audio_multiplexed([self.last_audio_file, self.last_audio_file],
+                                            [primary_index, secondary_index])
+            else:
+                self.play_audio_multiplexed([self.last_audio_file],
+                                            [primary_index])
+
+        else:
+            messagebox.showinfo("No Audio", "No audio has been generated yet.")
+
+    def play_saved_audio(self, file_path, device_name):
+        device_index = self.available_devices.get(device_name, None)
+        if device_index is None:
+            messagebox.showerror("Error", "Selected audio device is not available.")
+            return
+        
+        wf = wave.open(file_path, 'rb')
+        p = pyaudio.PyAudio()
+        try:
+            stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
+                            channels=wf.getnchannels(),
+                            rate=wf.getframerate(),
+                            output=True,
+                            output_device_index=device_index)
+            data = wf.readframes(1024)
+            while data:
+                stream.write(data)
+                data = wf.readframes(1024)
+        finally:
+            stream.stop_stream()
+            stream.close()
+            wf.close()
+            p.terminate()
+
+            
+    def change_api_key(self):
+        new_key = simpledialog.askstring("API Key", "Enter new OpenAI API Key:", parent=self)
+        if new_key:
+            self.save_api_key(new_key)
+            self.api_key = new_key
+            self.client = OpenAI(api_key=self.api_key)
+            messagebox.showinfo("API Key Updated", "The OpenAI API Key has been updated successfully.")
+
 
 if __name__ == "__main__":
-    import sys
-
-    arglen = len(sys.argv)
-
-    if arglen < 2:
-        print("Usage: python script.py 'text to convert'")
-        sys.exit(1)
-    
-    print(f"arg count {arglen}")
-
-    if arglen == 4:
-        device_index = int(sys.argv[2])
-        device_index_2 = int(sys.argv[3])
-    elif arglen == 3:
-        device_index = int(sys.argv[2])
-        device_index_2 = None
-    else:
-        list_audio_devices()
-        device_index = int(input("Enter the device index: "))
-        device_index_2 = None
-
-    
-    stream_audio_to_virtual_mic(sys.argv[1], voice="fable", device_index=device_index,device_index_2=device_index_2)
+    app = Application()
+    app.mainloop()

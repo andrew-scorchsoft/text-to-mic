@@ -28,7 +28,7 @@ python text-to-mic.py "Text you'd like to speak" 8 5
 To get this script working you will need to install the following on the relevant operating system
 
 ### Windows
-
+pip install tk
 pip install pyaudio
 pip install python-dotenv
 pip install wave
