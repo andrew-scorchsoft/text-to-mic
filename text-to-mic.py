@@ -28,6 +28,10 @@ class Application(tk.Tk):
         else:
             self.style.theme_use('clam')  # Fallback to 'clam' on non-macOS systems
 
+        #Define stules
+        self.style.configure('Recording.TButton', background='red', foreground='white')
+        self.style.configure("Green.TButton", background="green", foreground="white")
+
 
         # Ensure API Key is loaded or prompted for before initializing GUI components
         self.api_key = self.get_api_key()
@@ -99,10 +103,6 @@ class Application(tk.Tk):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
-        #ttk.Label(main_frame, text="Scorchsoft Text to Mic").grid(column=0, row=0, columnspan=2, pady=(0, 10))  # Increased padding after the title
-        #ttk.Label(main_frame, text="This tool uses OpenAI's text-to-speech to stream audio.").grid(column=0, row=1, columnspan=2, pady=(0, 10))
-
-
         # Voice Selection
         self.voice_var = tk.StringVar()
         voices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
@@ -125,18 +125,29 @@ class Application(tk.Tk):
         self.text_input = tk.Text(main_frame, height=10, width=50)
         self.text_input.grid(column=0, row=5, columnspan=2, pady=(0, 20))  # Padding added before submit button
 
-        submit_button = ttk.Button(main_frame, text="Play Audio", command=self.submit_text)
-        submit_button.grid(column=0, row=6, columnspan=2, pady=(0, 20))
+        # Button configuration
+
+        self.recording = False  # State to check if currently recording
+        self.record_button = ttk.Button(main_frame, text="Record Mic", command=self.toggle_recording)
+        self.record_button.grid(column=0, row=6, sticky=tk.W + tk.E, pady=(0, 20), padx=(0, 10))  # Left padding to separate buttons
+
+        submit_button = ttk.Button(main_frame, text="Play Audio", style="Green.TButton", command=self.submit_text )
+        submit_button.grid(column=1, row=6, sticky=tk.W + tk.E, pady=(0, 20), padx=(10, 0))  # Right padding to separate buttons
+
+
+
+
+
+
 
         #Credits
         info_label = tk.Label(main_frame, text="Created by Scorchsoft.com App Development", fg="blue", cursor="hand2")
         info_label.grid(column=0, row=7, columnspan=2, pady=(0, 0))
         info_label.bind("<Button-1>", lambda e: self.open_scorchsoft())
 
-        # Recording button setup
-        self.recording = False  # State to check if currently recording
-        self.record_button = ttk.Button(main_frame, text="Rec", command=self.toggle_recording)
-        self.record_button.grid(column=0, row=8, columnspan=2, pady=(10, 0))
+
+
+
 
     
     
@@ -447,65 +458,58 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
 
     def toggle_recording(self):
         if not self.recording:
-            # Start recording
-            self.recording = True
-            self.after(0, self.stop_recording_btn_change, "Stop") # Self.after because UI update so being careful due to threads
-            self.record_audio_start()
+            self.start_recording()
         else:
-            # Stop recording
-            self.after(0, self.stop_recording_btn_change, "Rec") # Self.after because UI update so being careful due to threads
-            self.record_audio_stop()
-            self.recording = False
+            self.stop_recording()
 
     def stop_recording_btn_change(self, btn_text):
         self.record_button.config(text=btn_text)
-    
-   
-    def record_audio_start(self):
-        
+
+    def start_recording(self):
+        self.recording = True
+        self.record_button.config(text="Stop and Insert", style='Recording.TButton')
         self.frames = []
         self.p = pyaudio.PyAudio()
         self.stream = self.p.open(format=pyaudio.paInt16, channels=1, rate=44100, input=True, frames_per_buffer=1024)
-        #messagebox.showinfo("Record", "Recording started. Press 'Stop' when finished.")
 
         def record():
             while self.recording:
-                data = self.stream.read(1024)
+                data = self.stream.read(1024, exception_on_overflow=False)
                 self.frames.append(data)
 
         self.record_thread = threading.Thread(target=record)
         self.record_thread.start()
 
+    def stop_recording(self):
+        self.recording = False
+        if self.record_thread:
+            self.record_thread.join()
 
-
-
-    def record_audio_stop(self):
-        if self.recording:
-            self.recording = False
+        if self.stream:
             self.stream.stop_stream()
             self.stream.close()
+
+        if self.p:
             self.p.terminate()
 
-            # Try joining with a timeout to see if the thread stops properly
-            self.record_thread.join(timeout=1)
-            if self.record_thread.is_alive():
-                # Log or handle the scenario where the thread did not stop as expected
-                print("Warning: Recording thread did not stop as expected.")
+        self.save_recording()
+        self.record_button.config(text="Record Mic", style='TButton')  # Revert to default style
 
-            # Save the recording to a file
-            try:
-                file_path = self.get_audio_file_path("input_speech_recording.wav")
-                with wave.open(str(file_path), 'wb') as wf:
-                    wf.setnchannels(1)
-                    wf.setsampwidth(self.p.get_sample_size(pyaudio.paInt16))
-                    wf.setframerate(44100)
-                    wf.writeframes(b''.join(self.frames))
-            except Exception as e:
-                print(f"Error saving audio file: {e}")
-                return
 
-            # Optionally transcribe the recording
-            self.after(0, self.transcribe_audio, file_path)
+    def save_recording(self):
+        file_path = "output.wav"
+        wf = wave.open(file_path, 'wb')
+        wf.setnchannels(1)
+        wf.setsampwidth(self.p.get_sample_size(pyaudio.paInt16))
+        wf.setframerate(44100)
+        wf.writeframes(b''.join(self.frames))
+        wf.close()
+        print("Recording saved.")
+
+        self.after(0, self.transcribe_audio, file_path)
+    
+
+
 
     def transcribe_audio(self, file_path):
         try:
@@ -518,23 +522,16 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
             
             #This prevents issues with trying to upload TK after thread operations
             #whcih can cause crashes with no error displayed
-            self.after(0, self.transcribe_audio_update_ui, transcription)
-
+            self.text_input.delete("1.0", tk.END)  # Clear existing text
+            self.text_input.insert("1.0", transcription.text)  # Insert new text
             
+            print("Transcription Complete: The audio has been transcribed and the text has been placed in the input area.")
             #messagebox.showinfo("Transcription Complete", "The audio has been transcribed and the text has been placed in the input area.")
         
         except Exception as e:
-            #messagebox.showerror("Transcription Error", f"An error occurred during transcription: {str(e)}")
-            self.after(0, self.throw_error_test, 'transcription',e)
-            #print(f"Transcription error: An error occurred during transcription: {str(e)}")
-
-    def transcribe_audio_update_ui(self, transcription):
-        self.text_input.delete("1.0", tk.END)  # Clear existing text
-        self.text_input.insert("1.0", transcription.text)  # Insert new text
-        print("Transcription Complete: The audio has been transcribed and the text has been placed in the input area.")
+            print(f"Transcription error: An error occurred during transcription: {str(e)}")
     
-    def throw_error_test(self, error_type, e):
-         print(f"{error_type} error: An error occurred during transcription: {str(e)}")
+
 
 if __name__ == "__main__":
     app = Application()
