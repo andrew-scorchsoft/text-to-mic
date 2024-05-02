@@ -16,21 +16,22 @@ class Application(tk.Tk):
 
     def __init__(self):
         super().__init__()
+
         self.title("Scorchsoft Text to Mic")
         self.style = ttk.Style(self)
-
-        
         if self.tk.call('tk', 'windowingsystem') == 'aqua':
             self.style.theme_use('aqua')
         else:
             self.style.theme_use('clam')  # Fallback to 'clam' on non-macOS systems
-        
+
+
         # Ensure API Key is loaded or prompted for before initializing GUI components
         self.api_key = self.get_api_key()
         if not self.api_key:
             messagebox.showinfo("API Key Needed", "Please provide your OpenAI API Key.")
             self.destroy()
             return
+
         
         self.client = OpenAI(api_key=self.api_key)
 
@@ -42,6 +43,18 @@ class Application(tk.Tk):
 
         self.create_menu()
         self.initialize_gui()
+
+    def show_version(self):
+        instruction_window = tk.Toplevel(self)
+        instruction_window.title("App Version")
+        instruction_window.geometry("300x150")  # Width x Height
+
+        instructions = """Version 1.0.1\n\n App by Scorchsoft.com"""
+        
+        tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=280).pack(padx=10, pady=10)
+        
+        # Add a button to close the window
+        ttk.Button(instruction_window, text="Close", command=instruction_window.destroy).pack(pady=(10, 0))
 
     def create_menu(self):
         self.menubar = Menu(self)
@@ -62,7 +75,7 @@ class Application(tk.Tk):
         self.menubar.add_cascade(label="Help", menu=help_menu)
         help_menu.add_command(label="How to Use", command=self.show_instructions)
         help_menu.add_command(label="Terms of Use and Licence", command=self.show_terms_of_use)
-        
+        help_menu.add_command(label="Version", command=self.show_version)
 
     def initialize_gui(self):
         self.device_index = tk.StringVar(self)
@@ -87,7 +100,7 @@ class Application(tk.Tk):
         # Voice Selection
         self.voice_var = tk.StringVar()
         voices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
-        ttk.Label(main_frame, text="Choose a Voice").grid(column=0, row=0, sticky=tk.W, pady=(10, 10))  # Padding added
+        ttk.Label(main_frame, text="Voice").grid(column=0, row=0, sticky=tk.W, pady=(10, 10))  # Padding added
         voice_menu = ttk.OptionMenu(main_frame, self.voice_var,'fable', *voices)
         voice_menu.grid(column=1, row=0, sticky=tk.W)
 
@@ -110,13 +123,9 @@ class Application(tk.Tk):
         submit_button.grid(column=0, row=6, columnspan=2, pady=(0, 20))
 
         #Credits
-        info_label = tk.Label(main_frame, text="This tool was created by Scorchsoft.com app development", fg="blue", cursor="hand2")
-        info_label.grid(column=0, row=7, columnspan=2, pady=(0, 10))
+        info_label = tk.Label(main_frame, text="Created by Scorchsoft.com App Development", fg="blue", cursor="hand2")
+        info_label.grid(column=0, row=7, columnspan=2, pady=(0, 0))
         info_label.bind("<Button-1>", lambda e: self.open_scorchsoft())
-
-        #Software version
-        version_label = tk.Label(main_frame, text=f"Version: 1.0.0")
-        version_label.grid(column=0, row=8, columnspan=2, pady=(0, 10))
 
     
     
@@ -124,10 +133,14 @@ class Application(tk.Tk):
         webbrowser.open('https://www.scorchsoft.com')
 
 
+
+
+
+
     def show_instructions(self):
         instruction_window = tk.Toplevel(self)
         instruction_window.title("How to Use")
-        instruction_window.geometry("500x700")  # Width x Height
+        instruction_window.geometry("600x680")  # Width x Height
 
         instructions = """How to Use Scorchsoft Text to Mic:
 
@@ -138,6 +151,7 @@ This tool creates a virtual microphone on your Windows computer or Mac. Once ins
 2. Open the Text to Mic app by Scorchsoft, and input your OpenAPI key. How to set up an API key:
 https://platform.openai.com/docs/quickstart/account-setup
 (note that this may require you to add your billing details to OpenAI's playground before a key can be generated)
+In short, you sign up, go to playground, add billing details, go to API keys, add one, copy it, paste into Text to Mic.
 
 WARNING: This will use your OpenAI key to generate audio via the OpenAI API, which will incur charges per use. So please make sure to carefully monitor use.
 OpenAI pricing: openai.com/pricing
@@ -159,10 +173,9 @@ This tool was brought to you by Scorchsoft - We build custom apps to your requir
 If you like this tool then please help us out and give us a backlink to help others find it at:
 https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
 
-Please also make sure you read the Terms of use and licence statement before using this app.
-"""
+Please also make sure you read the Terms of use and licence statement before using this app."""
         
-        tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=480).pack(padx=10, pady=10)
+        tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=580).pack(padx=10, pady=10)
         
         # Add a button to close the window
         ttk.Button(instruction_window, text="Close", command=instruction_window.destroy).pack(pady=(10, 0))
@@ -199,11 +212,9 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
 
 
     def get_api_key(self):
-
-        self.show_instructions()  # Show the "How to Use" modal after setting the key
-
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:  # No API key found in the environment
+            self.show_instructions()  # Show the "How to Use" modal after setting the key
             api_key = simpledialog.askstring("API Key", "Enter your OpenAI API Key:", parent=self)
             if api_key:
                 self.save_api_key(api_key)
