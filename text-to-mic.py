@@ -72,6 +72,8 @@ class Application(tk.Tk):
         playback_menu = Menu(self.menubar, tearoff=0)
         self.menubar.add_cascade(label="Playback", menu=playback_menu)
         playback_menu.add_command(label="Play Last Audio", command=self.play_last_audio)
+        #playback_menu.add_command(label="Input Speech to Text", command=self.input_speech_to_text)
+
 
         # Help menu
         help_menu = Menu(self.menubar, tearoff=0)
@@ -129,6 +131,11 @@ class Application(tk.Tk):
         info_label = tk.Label(main_frame, text="Created by Scorchsoft.com App Development", fg="blue", cursor="hand2")
         info_label.grid(column=0, row=7, columnspan=2, pady=(0, 0))
         info_label.bind("<Button-1>", lambda e: self.open_scorchsoft())
+
+        # Recording button setup
+        self.recording = False  # State to check if currently recording
+        self.record_button = ttk.Button(main_frame, text="Rec", command=self.toggle_recording)
+        self.record_button.grid(column=0, row=8, columnspan=2, pady=(10, 0))
 
     
     
@@ -282,7 +289,9 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
     
     def get_audio_file_path(self, filename):
         if platform.system() == 'Darwin':  # Check if the OS is macOS
-            return self.get_app_support_path_mac() / filename
+            mac_path = self.get_app_support_path_mac();
+            #return self.get_app_support_path_mac() / filename
+            return f"{mac_path}/{filename}"
         else:
             return Path(filename)  # Default to current directory for non-macOS systems
 
@@ -433,6 +442,70 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
             self.api_key = new_key
             self.client = OpenAI(api_key=self.api_key)
             messagebox.showinfo("API Key Updated", "The OpenAI API Key has been updated successfully.")
+
+
+    def toggle_recording(self):
+        if not self.recording:
+            # Start recording
+            self.recording = True
+            self.record_button.config(text="Stop")
+            self.record_audio_start()
+        else:
+            # Stop recording
+            self.recording = False
+            self.record_button.config(text="Rec")
+            self.record_audio_stop()
+
+    def record_audio_start(self):
+        import threading
+        self.frames = []
+        self.p = pyaudio.PyAudio()
+        self.stream = self.p.open(format=pyaudio.paInt16, channels=1, rate=44100, input=True, frames_per_buffer=1024)
+        #messagebox.showinfo("Record", "Recording started. Press 'Stop' when finished.")
+
+        def record():
+            while self.recording:
+                data = self.stream.read(1024)
+                self.frames.append(data)
+
+        self.record_thread = threading.Thread(target=record)
+        self.record_thread.start()
+
+    def record_audio_stop(self):
+        self.recording = False
+        self.stream.stop_stream()
+        self.stream.close()
+        self.p.terminate()
+        self.record_thread.join()  # Ensure the recording thread has finished
+
+        # Save the recording to a file
+        file_path = self.get_audio_file_path("input_speech_recording.wav")
+        wf = wave.open(str(file_path), 'wb')
+        wf.setnchannels(1)
+        wf.setsampwidth(self.p.get_sample_size(pyaudio.paInt16))
+        wf.setframerate(44100)
+        wf.writeframes(b''.join(self.frames))
+        wf.close()
+
+        # Optionally transcribe the recording
+        self.transcribe_audio(file_path)
+
+    def transcribe_audio(self, file_path):
+        try:
+            with open(str(file_path), "rb") as audio_file:
+                transcription = self.client.audio.transcriptions.create(
+                    file=audio_file,
+                    model="whisper-1",
+                    response_format="verbose_json"
+                )
+            self.text_input.delete("1.0", tk.END)  # Clear existing text
+            self.text_input.insert("1.0", transcription.text)  # Insert new text
+
+            print("Transcription Complete: The audio has been transcribed and the text has been placed in the input area.")
+            #messagebox.showinfo("Transcription Complete", "The audio has been transcribed and the text has been placed in the input area.")
+        
+        except Exception as e:
+            messagebox.showerror("Transcription Error", f"An error occurred during transcription: {str(e)}")
 
 
 if __name__ == "__main__":
