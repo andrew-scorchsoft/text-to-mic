@@ -1,4 +1,5 @@
 import tkinter as tk
+import platform
 from tkinter import ttk, messagebox, simpledialog, Menu
 import os
 import pyaudio
@@ -6,6 +7,8 @@ import wave
 import webbrowser
 from openai import OpenAI
 from dotenv import load_dotenv
+from pathlib import Path
+
 
 
 # Load environment variables
@@ -209,23 +212,63 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
 
 
 
+    def get_app_support_path_mac():
+        home = Path.home()
+        app_support_path = home / 'Library' / 'Application Support' / 'scorchsoft-text-to-mic'
+        app_support_path.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
+        return app_support_path
+    
+    def save_api_key_mac(api_key):
+        env_path = get_app_support_path() / '.env'
+        with open(env_path, 'w') as f:
+            f.write(f"OPENAI_API_KEY={api_key}\n")
+        # Consider manually loading this .env file into your environment as needed
 
+    def load_api_key_mac():
+        env_path = get_app_support_path() / '.env'
+        if env_path.exists():
+            with open(env_path, 'r') as f:
+                for line in f:
+                    if line.startswith('OPENAI_API_KEY'):
+                        return line.strip().split('=')[1]
+        return None
 
+ 
     def get_api_key(self):
+        # First, try to load the API key from environment variables or local file
         api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:  # No API key found in the environment
-            self.show_instructions()  # Show the "How to Use" modal after setting the key
-            api_key = simpledialog.askstring("API Key", "Enter your OpenAI API Key:", parent=self)
-            if api_key:
-                self.save_api_key(api_key)
-                messagebox.showinfo("API Key Set", "The OpenAI API Key has been updated successfully.")
-                
+        if not api_key:  # Check for macOS and use the macOS-specific method
+            if platform.system() == 'Darwin':  # Darwin is the system name for macOS
+                api_key = self.load_api_key_mac()
+            
+            # If no API key is found, prompt the user
+            if not api_key:
+                self.show_instructions()  # Show the "How to Use" modal after setting the key
+                api_key = simpledialog.askstring("API Key", "Enter your OpenAI API Key:", parent=self)
+                if api_key:
+                    try:
+                        if platform.system() == 'Darwin':
+                            self.save_api_key_mac(api_key)
+                        else:
+                            self.save_api_key(api_key)
+                        messagebox.showinfo("API Key Set", "The OpenAI API Key has been updated successfully.")
+                    except Exception as e:
+                        messagebox.showerror("Error", f"Failed to save API key: {str(e)}")
+        
         return api_key
 
+
     def save_api_key(self, api_key):
-        with open('.env', 'w') as f:
-            f.write(f"OPENAI_API_KEY={api_key}\n")
-        load_dotenv()
+        try:
+            if platform.system() == 'Darwin':
+                self.save_api_key_mac(api_key)
+            else:
+                with open('.env', 'w') as f:
+                    f.write(f"OPENAI_API_KEY={api_key}\n")
+                load_dotenv()  # Reload environment to include the new API key
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save API key: {str(e)}")
+
 
     def get_audio_devices(self):
         p = pyaudio.PyAudio()
@@ -236,6 +279,13 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
                 devices[info['name']] = i
         p.terminate()
         return devices
+    
+    def get_audio_file_path(self, filename):
+        if platform.system() == 'Darwin':  # Check if the OS is macOS
+            return self.get_app_support_path_mac() / filename
+        else:
+            return Path(filename)  # Default to current directory for non-macOS systems
+
 
     def submit_text(self):
 
@@ -264,8 +314,9 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
                 input=text,
                 response_format='wav'
             )
-            self.last_audio_file = "last_output.wav"
-            response.stream_to_file(self.last_audio_file)
+
+            self.last_audio_file = self.get_audio_file_path("last_output.wav")
+            response.stream_to_file(str(self.last_audio_file))
 
             #Play to either two or a single stream
             if primary_index and secondary_index != "None" and secondary_index is not None:
@@ -287,12 +338,30 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
         try:
             # Open all files and start all streams
             for file_path, device_index in zip(file_paths, device_indices):
-                wf = wave.open(file_path, 'rb')
-                stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
-                                channels=wf.getnchannels(),
-                                rate=wf.getframerate(),
-                                output=True,
-                                output_device_index=int(device_index))
+
+
+
+                try:
+                    # Ensure the file_path is a string when opening the file
+                    wf = wave.open(str(file_path), 'rb')
+                except FileNotFoundError:
+                    messagebox.showerror("File Not Found", f"Could not find audio file: {file_path}")
+                    continue  # Skip this iteration and proceed with other files if any
+                except wave.Error as e:
+                    messagebox.showerror("Wave Error", f"Error reading audio file: {file_path}. Error: {str(e)}")
+                    continue
+
+                try:
+                    stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
+                                    channels=wf.getnchannels(),
+                                    rate=wf.getframerate(),
+                                    output=True,
+                                    output_device_index=int(device_index))
+                except Exception as e:
+                    messagebox.showerror("Stream Creation Error", f"Failed to create audio stream for device index {device_index}: {str(e)}")
+                    wf.close()
+                    continue
+
                 streams.append((stream, wf))
 
             # Play interleaved
@@ -308,6 +377,7 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
                         wf.close()
                         streams.remove((stream, wf))
                         active_streams -= 1
+
         except Exception as e:
             messagebox.showerror("Playback Error", f"Error during multiplexed playback: {e}")
         finally:
@@ -315,8 +385,6 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
 
 
     def play_last_audio(self):
-
-
 
         if hasattr(self, 'last_audio_file'):
             primary_index = self.available_devices.get(self.device_index.get(), None)
