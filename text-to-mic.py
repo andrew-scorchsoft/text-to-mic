@@ -2,6 +2,7 @@ import tkinter as tk
 import platform
 from tkinter import ttk, messagebox, simpledialog, Menu
 import os
+import threading
 import pyaudio
 import wave
 import webbrowser
@@ -52,7 +53,7 @@ class Application(tk.Tk):
         instruction_window.title("App Version")
         instruction_window.geometry("300x150")  # Width x Height
 
-        instructions = """Version 1.0.2\n\n App by Scorchsoft.com"""
+        instructions = """Version 1.0.3\n\n App by Scorchsoft.com"""
         
         tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=280).pack(padx=10, pady=10)
         
@@ -219,7 +220,7 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
 
 
 
-    def get_app_support_path_mac():
+    def get_app_support_path_mac(self):
         home = Path.home()
         app_support_path = home / 'Library' / 'Application Support' / 'scorchsoft-text-to-mic'
         app_support_path.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
@@ -289,7 +290,7 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
     
     def get_audio_file_path(self, filename):
         if platform.system() == 'Darwin':  # Check if the OS is macOS
-            mac_path = self.get_app_support_path_mac();
+            mac_path = self.get_app_support_path_mac()
             #return self.get_app_support_path_mac() / filename
             return f"{mac_path}/{filename}"
         else:
@@ -448,16 +449,20 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
         if not self.recording:
             # Start recording
             self.recording = True
-            self.record_button.config(text="Stop")
+            self.after(0, self.stop_recording_btn_change, "Stop") # Self.after because UI update so being careful due to threads
             self.record_audio_start()
         else:
             # Stop recording
-            self.recording = False
-            self.record_button.config(text="Rec")
+            self.after(0, self.stop_recording_btn_change, "Rec") # Self.after because UI update so being careful due to threads
             self.record_audio_stop()
+            self.recording = False
 
+    def stop_recording_btn_change(self, btn_text):
+        self.record_button.config(text=btn_text)
+    
+   
     def record_audio_start(self):
-        import threading
+        
         self.frames = []
         self.p = pyaudio.PyAudio()
         self.stream = self.p.open(format=pyaudio.paInt16, channels=1, rate=44100, input=True, frames_per_buffer=1024)
@@ -471,24 +476,36 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
         self.record_thread = threading.Thread(target=record)
         self.record_thread.start()
 
+
+
+
     def record_audio_stop(self):
-        self.recording = False
-        self.stream.stop_stream()
-        self.stream.close()
-        self.p.terminate()
-        self.record_thread.join()  # Ensure the recording thread has finished
+        if self.recording:
+            self.recording = False
+            self.stream.stop_stream()
+            self.stream.close()
+            self.p.terminate()
 
-        # Save the recording to a file
-        file_path = self.get_audio_file_path("input_speech_recording.wav")
-        wf = wave.open(str(file_path), 'wb')
-        wf.setnchannels(1)
-        wf.setsampwidth(self.p.get_sample_size(pyaudio.paInt16))
-        wf.setframerate(44100)
-        wf.writeframes(b''.join(self.frames))
-        wf.close()
+            # Try joining with a timeout to see if the thread stops properly
+            self.record_thread.join(timeout=1)
+            if self.record_thread.is_alive():
+                # Log or handle the scenario where the thread did not stop as expected
+                print("Warning: Recording thread did not stop as expected.")
 
-        # Optionally transcribe the recording
-        self.transcribe_audio(file_path)
+            # Save the recording to a file
+            try:
+                file_path = self.get_audio_file_path("input_speech_recording.wav")
+                with wave.open(str(file_path), 'wb') as wf:
+                    wf.setnchannels(1)
+                    wf.setsampwidth(self.p.get_sample_size(pyaudio.paInt16))
+                    wf.setframerate(44100)
+                    wf.writeframes(b''.join(self.frames))
+            except Exception as e:
+                print(f"Error saving audio file: {e}")
+                return
+
+            # Optionally transcribe the recording
+            self.after(0, self.transcribe_audio, file_path)
 
     def transcribe_audio(self, file_path):
         try:
@@ -498,15 +515,26 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
                     model="whisper-1",
                     response_format="verbose_json"
                 )
-            self.text_input.delete("1.0", tk.END)  # Clear existing text
-            self.text_input.insert("1.0", transcription.text)  # Insert new text
+            
+            #This prevents issues with trying to upload TK after thread operations
+            #whcih can cause crashes with no error displayed
+            self.after(0, self.transcribe_audio_update_ui, transcription)
 
-            print("Transcription Complete: The audio has been transcribed and the text has been placed in the input area.")
+            
             #messagebox.showinfo("Transcription Complete", "The audio has been transcribed and the text has been placed in the input area.")
         
         except Exception as e:
-            messagebox.showerror("Transcription Error", f"An error occurred during transcription: {str(e)}")
+            #messagebox.showerror("Transcription Error", f"An error occurred during transcription: {str(e)}")
+            self.after(0, self.throw_error_test, 'transcription',e)
+            #print(f"Transcription error: An error occurred during transcription: {str(e)}")
 
+    def transcribe_audio_update_ui(self, transcription):
+        self.text_input.delete("1.0", tk.END)  # Clear existing text
+        self.text_input.insert("1.0", transcription.text)  # Insert new text
+        print("Transcription Complete: The audio has been transcribed and the text has been placed in the input area.")
+    
+    def throw_error_test(self, error_type, e):
+         print(f"{error_type} error: An error occurred during transcription: {str(e)}")
 
 if __name__ == "__main__":
     app = Application()
