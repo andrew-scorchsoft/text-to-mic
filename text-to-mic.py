@@ -18,7 +18,12 @@ class Application(tk.Tk):
         super().__init__()
         self.title("Scorchsoft Text to Mic")
         self.style = ttk.Style(self)
-        self.style.theme_use('clam')  # Using a theme for a better look
+
+        
+        if self.tk.call('tk', 'windowingsystem') == 'aqua':
+            self.style.theme_use('aqua')
+        else:
+            self.style.theme_use('clam')  # Fallback to 'clam' on non-macOS systems
         
         # Ensure API Key is loaded or prompted for before initializing GUI components
         self.api_key = self.get_api_key()
