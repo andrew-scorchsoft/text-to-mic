@@ -68,9 +68,14 @@ To get this script working you will need to install the following on the relevan
 ### Mac
 
 * brew install portaudio
-* pip install python-dotenv
-* pip install wave
-* pip install pydub
+* brew install python-tk
+* python3 -m venv ~/code/scorchsoft/text-to-mic-feed
+* source ~/code/scorchsoft/text-to-mic-feed/bin/activate
+* pip3 install python-dotenv
+* pip3 install pyaudio
+* pip3 install openai
+* pip3 install wave
+* pip3 install pydub
 
 # Making an installer
 
