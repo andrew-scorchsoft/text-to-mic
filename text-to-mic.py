@@ -6,6 +6,7 @@ import threading
 import pyaudio
 import wave
 import webbrowser
+import json
 from openai import OpenAI
 from dotenv import load_dotenv
 from pathlib import Path
@@ -58,7 +59,7 @@ class Application(tk.Tk):
         instruction_window.title("App Version")
         instruction_window.geometry("300x150")  # Width x Height
 
-        instructions = """Version 1.0.4\n\n App by Scorchsoft.com"""
+        instructions = """Version 1.0.5\n\n App by Scorchsoft.com"""
         
         tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=280).pack(padx=10, pady=10)
         
@@ -73,12 +74,18 @@ class Application(tk.Tk):
         settings_menu = Menu(self.menubar, tearoff=0)
         self.menubar.add_cascade(label="Settings", menu=settings_menu)
         settings_menu.add_command(label="Change API Key", command=self.change_api_key)
+        settings_menu.add_command(label="ChatGPT Manipulation", command=self.chat_gpt_settings)
 
         # Playback menu
         playback_menu = Menu(self.menubar, tearoff=0)
         self.menubar.add_cascade(label="Playback", menu=playback_menu)
         playback_menu.add_command(label="Play Last Audio", command=self.play_last_audio)
         #playback_menu.add_command(label="Input Speech to Text", command=self.input_speech_to_text)
+
+        #apply_ai
+        input_menu = Menu(self.menubar, tearoff=0)
+        self.menubar.add_cascade(label="Input", menu=input_menu)
+        input_menu.add_command(label="Apply AI Manipulation to Input Text", command=self.apply_ai)
 
 
         # Help menu
@@ -566,10 +573,25 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
                     response_format="verbose_json"
                 )
             
-            #This prevents issues with trying to upload TK after thread operations
-            #whcih can cause crashes with no error displayed
-            self.text_input.delete("1.0", tk.END)  # Clear existing text
-            self.text_input.insert("1.0", transcription.text)  # Insert new text
+
+            settings = self.load_settings()
+
+            if settings["chat_gpt_completion"] and settings["auto_apply_ai_to_recording"]:
+                auto_apply_ai = settings["auto_apply_ai_to_recording"]
+            else:
+                auto_apply_ai = False
+
+            print(f"auto_apply_ai: {auto_apply_ai}")
+
+            if auto_apply_ai:
+                print("applying ai")
+                self.apply_ai(transcription.text)
+            else:
+                print("outputting without ai")
+                #This prevents issues with trying to upload TK after thread operations
+                #whcih can cause crashes with no error displayed
+                self.text_input.delete("1.0", tk.END)  # Clear existing text
+                self.text_input.insert("1.0", transcription.text)  # Insert new text
             
             print("Transcription Complete: The audio has been transcribed and the text has been placed in the input area.")
             #messagebox.showinfo("Transcription Complete", "The audio has been transcribed and the text has been placed in the input area.")
@@ -577,6 +599,112 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
         except Exception as e:
             print(f"Transcription error: An error occurred during transcription: {str(e)}")
     
+    def load_settings(self):
+        # Determine file path based on the operating system
+        settings_file = self.get_settings_file_path("settings.json")
+        
+        try:
+            with open(settings_file, "r") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            # Default settings
+            return {"chat_gpt_completion": False, "model": "gpt-3.5-turbo", "prompt": "", "auto_apply": False}
+
+    def save_settings_to_JSON(self, settings):
+        settings_file = self.get_settings_file_path("settings.json")
+        
+        with open(settings_file, "w") as f:
+            json.dump(settings, f)
+
+    def get_settings_file_path(self, filename):
+        if platform.system() == 'Darwin':  # Check if the OS is macOS
+            mac_path = self.get_app_support_path_mac()
+            return f"{mac_path}/{filename}"
+        else:
+            return filename  # Default to current directory for non-macOS systems
+        
+    def chat_gpt_settings(self):
+        settings = self.load_settings()
+        settings_window = tk.Toplevel(self)
+        settings_window.title("ChatGPT Manipulation Settings")
+        settings_window.grab_set()  # Grab the focus on this toplevel window
+
+        main_frame = ttk.Frame(settings_window, padding="10")
+        main_frame.grid(column=0, row=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+
+        # Use the ttk style for uniformity
+        style = ttk.Style()
+        style.theme_use('clam')
+
+        enable_completion = tk.BooleanVar(value=settings.get("chat_gpt_completion", False))
+        ttk.Checkbutton(main_frame, text="Enable ChatGPT Completion", variable=enable_completion).grid(row=0, column=1, sticky=tk.W, pady=2)
+
+        # Model selection
+        model_var = tk.StringVar(value=settings.get("model", "gpt-3.5-turbo"))
+        ttk.Label(main_frame, text="Model:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        ttk.OptionMenu(main_frame, model_var, "gpt-3.5-turbo", "gpt-3.5-turbo", "gpt-4-turbo").grid(row=1, column=1, sticky=tk.W, pady=2)
+
+        # Max Tokens selection
+        max_tokens_var = tk.IntVar(value=settings.get("max_tokens", 750))
+        ttk.Label(main_frame, text="Max Tokens:").grid(row=2, column=0, sticky=tk.W, pady=2)
+        max_tokens_menu = ttk.OptionMenu(main_frame, max_tokens_var, 750, 100, 250, 500, 750, 1000, 1250, 1500)
+        max_tokens_menu.grid(row=2, column=1, sticky=tk.W, pady=2)
+
+        # Prompt entry as a Text area
+        ttk.Label(main_frame, text="Prompt:").grid(row=3, column=0, sticky=tk.NW, pady=2)
+        prompt_entry = tk.Text(main_frame, height=4, width=40)
+        prompt_entry.insert('1.0', settings.get("prompt", ""))
+        prompt_entry.grid(row=3, column=1, sticky=tk.W, pady=2)
+
+        # Auto-apply checkbox
+        auto_apply = tk.BooleanVar(value=settings.get("auto_apply_ai_to_recording", False))
+        ttk.Checkbutton(main_frame, text="Auto Apply to Recorded Transcript", variable=auto_apply).grid(row=4, column=1, sticky=tk.W, pady=2)
+
+        # Save Button
+        save_btn = ttk.Button(main_frame, text="Save", command=lambda: self.save_chat_gpt_settings({
+            "chat_gpt_completion": enable_completion.get(),
+            "model": model_var.get(),
+            "prompt": prompt_entry.get("1.0", tk.END).strip(),
+            "auto_apply_ai_to_recording": auto_apply.get(),
+            "max_tokens": max_tokens_var.get()
+        }))
+        save_btn.grid(row=5, column=1, sticky=tk.W + tk.E, pady=10)
+
+    def save_chat_gpt_settings(self, settings):
+        self.save_settings_to_JSON(settings)
+        messagebox.showinfo("Settings Updated", "Your settings have been saved successfully.")
+        self.load_settings()  # Refresh settings if needed elsewhere
+
+    def apply_ai(self, input_text=None):
+
+        if input_text is None:
+            print("Will apply AI to UI input box")
+            text = self.text_input.get("1.0", tk.END).strip()
+        else:
+            print("Will apply AI to input_text")
+            text = input_text
+
+        settings = self.load_settings()
+
+        if settings["chat_gpt_completion"] and settings["max_tokens"]:
+            var_max_tokens = settings["max_tokens"]
+        else:
+            var_max_tokens = 750
+
+        print(f"GPT Settings: {settings}")
+        print(f"Max Tokens: {var_max_tokens}")
+
+        if settings["chat_gpt_completion"]:
+            # Assuming OpenAI's completion method is configured correctly
+            response = self.client.chat.completions.create(
+                model=settings["model"],
+                messages=[
+                    {"role": "system", "content": settings["prompt"] },
+                    {"role": "user", "content": "\n\n# Apply to the following (Do not output system prompt or hyphens markup or anything before this line):\n\n-----\n\n" + text + "\n\n-----"}],
+                max_tokens=750
+            )
+            self.text_input.delete("1.0", tk.END)
+            self.text_input.insert("1.0", response.choices[0].message.content)
 
 
 if __name__ == "__main__":

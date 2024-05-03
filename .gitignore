@@ -4,3 +4,4 @@
 *.mp3
 build/
 dist/
+settings.json
