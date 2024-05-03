@@ -48,6 +48,7 @@ class Application(tk.Tk):
         self.device_index_2 = tk.StringVar(self)
 
         self.available_devices = self.get_audio_devices()  # Load audio devices
+        self.available_input_devices = self.get_input_devices() # Load input devices
 
         self.create_menu()
         self.initialize_gui()
@@ -57,7 +58,7 @@ class Application(tk.Tk):
         instruction_window.title("App Version")
         instruction_window.geometry("300x150")  # Width x Height
 
-        instructions = """Version 1.0.3\n\n App by Scorchsoft.com"""
+        instructions = """Version 1.0.4\n\n App by Scorchsoft.com"""
         
         tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=280).pack(padx=10, pady=10)
         
@@ -87,16 +88,25 @@ class Application(tk.Tk):
         help_menu.add_command(label="Terms of Use and Licence", command=self.show_terms_of_use)
         help_menu.add_command(label="Version", command=self.show_version)
 
+
+
+
+
     def initialize_gui(self):
+
+        self.input_device_index = tk.StringVar(self)
         self.device_index = tk.StringVar(self)
         self.device_index_2 = tk.StringVar(self)
+
+        self.input_device_index.set("Default")
         self.device_index.set("Select Device")
         self.device_index_2.set("None")
 
-        # Fetching available devices
-        available_devices = self.get_audio_devices()
-        device_names = list(available_devices.keys())
-
+        # Fetching available devices (no longer needed here?)
+        #available_devices = self.get_audio_devices()
+        #available_input_devices = self.get_input_devices()
+        #device_names = list(self.available_devices.keys())
+        #input_device_names = list(self.available_input_devices.keys())
 
         main_frame = ttk.Frame(self, padding="20")
         main_frame.grid(column=0, row=0, sticky=(tk.W, tk.E, tk.N, tk.S))
@@ -109,6 +119,11 @@ class Application(tk.Tk):
         ttk.Label(main_frame, text="Voice").grid(column=0, row=0, sticky=tk.W, pady=(10, 10))  # Padding added
         voice_menu = ttk.OptionMenu(main_frame, self.voice_var,'fable', *voices)
         voice_menu.grid(column=1, row=0, sticky=tk.W)
+
+        # Microphone Selection Setup
+        ttk.Label(main_frame, text="Input Device (optional):").grid(column=0, row=1, sticky=tk.W, pady=(5, 10))  # Padding added
+        input_device_menu = ttk.OptionMenu(main_frame, self.input_device_index, "None", *self.available_input_devices.keys())
+        input_device_menu.grid(column=1, row=1, sticky=tk.W)
 
         # Select Primary audio device
         ttk.Label(main_frame, text="Primary Playback Device:").grid(column=0, row=2, sticky=tk.W, pady=(10, 10))  # Padding added
@@ -299,6 +314,17 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
         p.terminate()
         return devices
     
+    def get_input_devices(self):
+        p = pyaudio.PyAudio()
+        devices = {}
+        for i in range(p.get_device_count()):
+            info = p.get_device_info_by_index(i)
+            if info['maxInputChannels'] > 0:  # Filter for input-capable devices
+                devices[info['name']] = i
+        p.terminate()
+        return devices
+
+    
     def get_audio_file_path(self, filename):
         if platform.system() == 'Darwin':  # Check if the OS is macOS
             mac_path = self.get_app_support_path_mac()
@@ -466,21 +492,39 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
         self.record_button.config(text=btn_text)
 
     def start_recording(self):
-        self.recording = True
-        self.record_button.config(text="Stop and Insert", style='Recording.TButton')
-        self.frames = []
-        self.p = pyaudio.PyAudio()
-        self.stream = self.p.open(format=pyaudio.paInt16, channels=1, rate=44100, input=True, frames_per_buffer=1024)
 
-        def record():
-            while self.recording:
-                data = self.stream.read(1024, exception_on_overflow=False)
-                self.frames.append(data)
 
-        self.record_thread = threading.Thread(target=record)
-        self.record_thread.start()
+        input_device_id = self.available_input_devices.get(self.input_device_index.get(), None)
 
-    def stop_recording(self):
+        #Record to GUI selected device ID
+        #device_id = None if self.input_device_index.get() == "Default" else input_devices[self.input_device_index.get()]
+
+        if input_device_id is None:
+            messagebox.showerror("Error", "Selected audio device is not available.")
+            return
+        
+        try:
+            self.recording = True
+            self.record_button.config(text="Stop and Insert", style='Recording.TButton')
+            self.frames = []
+
+            self.p = pyaudio.PyAudio()
+            self.stream = self.p.open(format=pyaudio.paInt16, channels=1, rate=44100, input=True, frames_per_buffer=1024, input_device_index=input_device_id)
+
+
+            def record():
+                while self.recording:
+                    data = self.stream.read(1024, exception_on_overflow=False)
+                    self.frames.append(data)
+
+            self.record_thread = threading.Thread(target=record)
+            self.record_thread.start()
+
+        except Exception as e:
+            messagebox.showerror("Recording Error", f"Failed to record audio: {str(e)}")
+            self.stop_recording(True)
+
+    def stop_recording(self, cancel_save=False):
         self.recording = False
         if self.record_thread:
             self.record_thread.join()
@@ -492,7 +536,9 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
         if self.p:
             self.p.terminate()
 
-        self.save_recording()
+        if cancel_save==False:
+            self.save_recording()
+        
         self.record_button.config(text="Record Mic", style='TButton')  # Revert to default style
 
 
