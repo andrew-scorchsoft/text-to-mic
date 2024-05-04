@@ -261,14 +261,14 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
         app_support_path.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
         return app_support_path
     
-    def save_api_key_mac(api_key):
-        env_path = get_app_support_path() / '.env'
+    def save_api_key_mac(self, api_key):
+        env_path = self.get_app_support_path_mac() / '.env'
         with open(env_path, 'w') as f:
             f.write(f"OPENAI_API_KEY={api_key}\n")
         # Consider manually loading this .env file into your environment as needed
 
-    def load_api_key_mac():
-        env_path = get_app_support_path() / '.env'
+    def load_api_key_mac(self):
+        env_path = self.get_app_support_path_mac() / '.env'
         if env_path.exists():
             with open(env_path, 'r') as f:
                 for line in f:
