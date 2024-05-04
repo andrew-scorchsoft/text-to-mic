@@ -10,6 +10,8 @@ import json
 from openai import OpenAI
 from dotenv import load_dotenv
 from pathlib import Path
+from pydub import AudioSegment
+
 
 
 
@@ -384,6 +386,14 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
         except Exception as e:
             messagebox.showerror("API Error", f"Failed to generate audio: {str(e)}")
 
+
+    def resample_audio(self, file_path, target_sample_rate):
+        sound = AudioSegment.from_file(file_path)
+        resampled_sound = sound.set_frame_rate(target_sample_rate)
+        resampled_file_path = "resampled_" + file_path
+        resampled_sound.export(resampled_file_path, format="wav")
+        return resampled_file_path
+
     def play_audio_multiplexed(self, file_paths, device_indices):
 
         p = pyaudio.PyAudio()
@@ -392,6 +402,7 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
         try:
             # Open all files and start all streams
             for file_path, device_index in zip(file_paths, device_indices):
+
 
 
 
@@ -406,11 +417,35 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
                     continue
 
                 try:
+                    
+                    # Ensure output audio sample rate matches that of the selected device
+                    device_info = self.get_device_info(device_index)
+                    sample_rate = int(device_info['defaultSampleRate'])  # Fetch default sample rate from device info
+                    wf_frame_rate = wf.getframerate()
+
+                    print(f"Sample Rate: {sample_rate}")
+                    print(f"WF Sample Width: {wf_frame_rate}")
+
+                    if sample_rate is None:
+                        sample_rate = wf_frame_rate
+
+                    # Make the audio file sample rate match the device output sample rate
+                    # if there is a mismatch (prevents playback speed issues or crashes)
+                    if sample_rate != wf_frame_rate:
+                        #if mismatch, make a new resampled version that matches the output device
+                        resampled_file_path = self.resample_audio(str(file_path), sample_rate)
+                        #update the playback file to the new resampled file
+                        file_path = resampled_file_path
+                        #re-open the new file for processing
+                        wf = wave.open(str(file_path), 'rb')
+                  
+                    #Create a stream from our file
                     stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
                                     channels=wf.getnchannels(),
-                                    rate=wf.getframerate(),
+                                    rate=sample_rate,
                                     output=True,
                                     output_device_index=int(device_index))
+                    
                 except Exception as e:
                     messagebox.showerror("Stream Creation Error", f"Failed to create audio stream for device index {device_index}: {str(e)}")
                     wf.close()
@@ -489,6 +524,14 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
             messagebox.showinfo("API Key Updated", "The OpenAI API Key has been updated successfully.")
 
 
+    def get_device_info(self, device_index):
+        p = pyaudio.PyAudio()
+        try:
+            device_info = p.get_device_info_by_index(device_index)
+            return device_info
+        finally:
+            p.terminate()
+    
     def toggle_recording(self):
         if not self.recording:
             self.start_recording()
@@ -500,8 +543,21 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
 
     def start_recording(self):
 
+        input_device_index = self.input_device_index.get()  # Assuming input_device_index is a StringVar
+        input_device_id = self.available_input_devices.get(input_device_index)
 
-        input_device_id = self.available_input_devices.get(self.input_device_index.get(), None)
+        if input_device_id is None:
+            messagebox.showerror("Error", "Selected audio device is not available.")
+            return
+
+
+        device_info = self.get_device_info(input_device_id)
+        sample_rate = int(device_info['defaultSampleRate'])
+
+        print(f"Device info: {device_info}")
+
+        if sample_rate is None:
+            sample_rate = 44100
 
         #Record to GUI selected device ID
         #device_id = None if self.input_device_index.get() == "Default" else input_devices[self.input_device_index.get()]
@@ -516,7 +572,7 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
             self.frames = []
 
             self.p = pyaudio.PyAudio()
-            self.stream = self.p.open(format=pyaudio.paInt16, channels=1, rate=44100, input=True, frames_per_buffer=1024, input_device_index=input_device_id)
+            self.stream = self.p.open(format=pyaudio.paInt16, channels=1, rate=sample_rate, input=True, frames_per_buffer=1024, input_device_index=input_device_id)
 
 
             def record():
