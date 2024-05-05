@@ -65,7 +65,8 @@ To get this script working you will need to install the following on the relevan
 * pip install pydub
 * pip install keyboard
 * pip install pystray
-* pip install playsound
+* pip install pygame
+
 
 
 ### Mac
@@ -88,10 +89,19 @@ To get this script working you will need to install the following on the relevan
 pip install --upgrade pip  # Ensure pip is updated
 pip install pyinstaller   # Install PyInstaller
 
+OLD:
 python -m PyInstaller --onefile --windowed text-to-mic.py
+
+New
+python -m PyInstaller --onefile --add-data "assets;assets" text-to-mic.py
 
 ## Mac
 
 brew install python
 pip3 install pyinstaller
+
+OLD
 pyinstaller --onefile --windowed text-to-mic.py
+
+New
+pyinstaller --onefile --add-data "assets:assets" text-to-mic.py

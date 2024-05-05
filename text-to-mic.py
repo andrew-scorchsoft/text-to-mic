@@ -7,7 +7,7 @@ import wave
 import webbrowser
 import json
 import keyboard
-import pygame
+import sys
 
 from pystray import Icon as icon, MenuItem as item, Menu as menu
 from PIL import Image, ImageDraw
@@ -16,6 +16,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from pathlib import Path
 from pydub import AudioSegment
+from audioplayer import AudioPlayer
 
 
 
@@ -107,9 +108,9 @@ class Application(tk.Tk):
 
     def setup_hotkeys(self):
         # Register global hotkeys
-        keyboard.add_hotkey('ctrl+shift+r', lambda: self.hotkey_record_trigger())
-        keyboard.add_hotkey('ctrl+shift+s', lambda: self.hotkey_stop_trigger() )
-        keyboard.add_hotkey('ctrl+shift+l', lambda: self.hotkey_play_last_audio_trigger() )
+        keyboard.add_hotkey('ctrl+shift+0', lambda: self.hotkey_record_trigger())
+        keyboard.add_hotkey('ctrl+shift+9', lambda: self.hotkey_stop_trigger() )
+        keyboard.add_hotkey('ctrl+shift+8', lambda: self.hotkey_play_last_audio_trigger() )
 
     def hotkey_play_last_audio_trigger(self):
         if hasattr(self, 'last_audio_file'):
@@ -122,30 +123,42 @@ class Application(tk.Tk):
         self.play_sound('assets/wrong-short.wav')
         if self.recording:
             self.stop_recording(auto_play=False)
+            self.recording=False
         
     # Sounds from https://mixkit.co/free-sound-effects/notification/
     def hotkey_record_trigger(self):
 
         if self.recording:
-            self.play_sound('assets/mixkit-message-pop-alert-2354.mp3')
+            self.play_sound('assets/pop.wav')
             self.submit_text()
         else:
 
-            input_device_index = self.input_device_index.get()  # Assuming input_device_index is a StringVar
-            input_device_id = self.available_input_devices.get(input_device_index)
-            if input_device_id is None:
-                self.play_sound('assets/please-select-input.wav')
-                return
-        
-            self.play_sound('assets/mixkit-message-pop-alert-2354.mp3')
-            self.toggle_recording()
-    
+            if not self.recording:
+                self.start_recording(play_confirm_sound=True)
+            else:
+                self.stop_recording(auto_play=True)
+
+
+
+
+
 
     def play_sound(self, sound_file):
-        pygame.init()
-        pygame.mixer.init()
-        sound = pygame.mixer.Sound(sound_file)
-        sound.play()
+        player = AudioPlayer(self.resource_path(sound_file))
+        player.play(block=True) 
+
+    def resource_path(self, relative_path):
+        """Get the absolute path to the resource, works for development and PyInstaller."""
+        try:
+            # When running in a PyInstaller bundle, use the '_MEIPASS' directory
+            base_path = sys._MEIPASS
+        except AttributeError:
+            # When running live, use the directory where this file is located
+            base_path = os.path.dirname(os.path.abspath(__file__))
+
+        return os.path.join(base_path, relative_path)
+
+        return os.path.join(base_path, relative_path)
 
     def initialize_gui(self):
 
@@ -233,13 +246,13 @@ class Application(tk.Tk):
         instruction_window.geometry("400x300")  # Width x Height
 
         instructions = """How to use Hotkeys
-ctrl+shift+r
+ctrl+shift+0
 This starts a recording, then converts to text and plays when you press this hotkey again.
 
-ctrl+shift+s
+ctrl+shift+9
 If you are recording, you can press this hotkey to stop recording without playing
 
-ctrl+shift+l
+ctrl+shift+8
 This replays the last audio clip played
 
         """
@@ -618,15 +631,18 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
     def stop_recording_btn_change(self, btn_text):
         self.record_button.config(text=btn_text)
 
-    def start_recording(self):
+
+    def start_recording(self, play_confirm_sound=False):
 
         input_device_index = self.input_device_index.get()  # Assuming input_device_index is a StringVar
         input_device_id = self.available_input_devices.get(input_device_index)
 
         if input_device_id is None:
-            messagebox.showerror("Error", "Selected audio device is not available.")
+            if play_confirm_sound:
+                self.play_sound('assets/please-select-input.wav')
+            else:
+                messagebox.showerror("Error", "Selected audio device is not available.")
             return
-
 
         device_info = self.get_device_info(input_device_id)
         sample_rate = int(device_info['defaultSampleRate'])
@@ -653,6 +669,8 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
             self.p = pyaudio.PyAudio()
             self.stream = self.p.open(format=pyaudio.paInt16, channels=1, rate=sample_rate, input=True, frames_per_buffer=1024, input_device_index=input_device_id)
 
+            if play_confirm_sound:
+                self.play_sound('assets/pop.wav')
 
             def record():
                 while self.recording:
