@@ -1,12 +1,17 @@
 import tkinter as tk
 import platform
-from tkinter import ttk, messagebox, simpledialog, Menu
 import os
 import threading
 import pyaudio
 import wave
 import webbrowser
 import json
+import keyboard
+import pygame
+
+from pystray import Icon as icon, MenuItem as item, Menu as menu
+from PIL import Image, ImageDraw
+from tkinter import ttk, messagebox, simpledialog, Menu
 from openai import OpenAI
 from dotenv import load_dotenv
 from pathlib import Path
@@ -55,13 +60,14 @@ class Application(tk.Tk):
 
         self.create_menu()
         self.initialize_gui()
+        self.setup_hotkeys()
 
     def show_version(self):
         instruction_window = tk.Toplevel(self)
         instruction_window.title("App Version")
         instruction_window.geometry("300x150")  # Width x Height
 
-        instructions = """Version 1.0.6\n\n App by Scorchsoft.com"""
+        instructions = """Version 1.0.7\n\n App by Scorchsoft.com"""
         
         tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=280).pack(padx=10, pady=10)
         
@@ -96,10 +102,50 @@ class Application(tk.Tk):
         help_menu.add_command(label="How to Use", command=self.show_instructions)
         help_menu.add_command(label="Terms of Use and Licence", command=self.show_terms_of_use)
         help_menu.add_command(label="Version", command=self.show_version)
+        help_menu.add_command(label="Hotkey Instructions", command=self.show_hotkey_instructions)
+        
 
+    def setup_hotkeys(self):
+        # Register global hotkeys
+        keyboard.add_hotkey('ctrl+shift+r', lambda: self.hotkey_record_trigger())
+        keyboard.add_hotkey('ctrl+shift+s', lambda: self.hotkey_stop_trigger() )
+        keyboard.add_hotkey('ctrl+shift+l', lambda: self.hotkey_play_last_audio_trigger() )
 
+    def hotkey_play_last_audio_trigger(self):
+        if hasattr(self, 'last_audio_file'):
+            self.play_last_audio()
+        else:
+            self.play_sound('assets/no-last-audio.wav')
+            
 
+    def hotkey_stop_trigger(self):
+        self.play_sound('assets/wrong-short.wav')
+        if self.recording:
+            self.stop_recording(auto_play=False)
+        
+    # Sounds from https://mixkit.co/free-sound-effects/notification/
+    def hotkey_record_trigger(self):
 
+        if self.recording:
+            self.play_sound('assets/mixkit-message-pop-alert-2354.mp3')
+            self.submit_text()
+        else:
+
+            input_device_index = self.input_device_index.get()  # Assuming input_device_index is a StringVar
+            input_device_id = self.available_input_devices.get(input_device_index)
+            if input_device_id is None:
+                self.play_sound('assets/please-select-input.wav')
+                return
+        
+            self.play_sound('assets/mixkit-message-pop-alert-2354.mp3')
+            self.toggle_recording()
+    
+
+    def play_sound(self, sound_file):
+        pygame.init()
+        pygame.mixer.init()
+        sound = pygame.mixer.Sound(sound_file)
+        sound.play()
 
     def initialize_gui(self):
 
@@ -155,8 +201,8 @@ class Application(tk.Tk):
         self.record_button = ttk.Button(main_frame, text="Record Mic", command=self.toggle_recording)
         self.record_button.grid(column=0, row=6, sticky=tk.W + tk.E, pady=(0, 20), padx=(0, 10))  # Left padding to separate buttons
 
-        submit_button = ttk.Button(main_frame, text="Play Audio", style="Green.TButton", command=self.submit_text )
-        submit_button.grid(column=1, row=6, sticky=tk.W + tk.E, pady=(0, 20), padx=(10, 0))  # Right padding to separate buttons
+        self.submit_button = ttk.Button(main_frame, text="Play Audio", style="Green.TButton", command=self.submit_text )
+        self.submit_button.grid(column=1, row=6, sticky=tk.W + tk.E, pady=(0, 20), padx=(10, 0))  # Right padding to separate buttons
 
 
 
@@ -181,7 +227,26 @@ class Application(tk.Tk):
 
 
 
+    def show_hotkey_instructions(self):
+        instruction_window = tk.Toplevel(self)
+        instruction_window.title("Hotkey Instructions")
+        instruction_window.geometry("400x300")  # Width x Height
 
+        instructions = """How to use Hotkeys
+ctrl+shift+r
+This starts a recording, then converts to text and plays when you press this hotkey again.
+
+ctrl+shift+s
+If you are recording, you can press this hotkey to stop recording without playing
+
+ctrl+shift+l
+This replays the last audio clip played
+
+        """
+        tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=380).pack(padx=10, pady=10)
+        
+        # Add a button to close the window
+        ttk.Button(instruction_window, text="Close", command=instruction_window.destroy).pack(pady=(10, 0))
 
     def show_instructions(self):
         instruction_window = tk.Toplevel(self)
@@ -343,14 +408,29 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
             return Path(filename)  # Default to current directory for non-macOS systems
 
 
-    def submit_text(self):
+    def submit_text(self, play_text = None):
 
-        text = self.text_input.get("1.0", tk.END).strip()
-        selected_voice = self.voice_var.get()
+        print(f"submit text self recording: {self.recording}")
+        if self.recording:
+            print("Stopping recording")
+            self.stop_recording(auto_play = True)
+        else:
+            print("Submitting text")
+            self.submit_text_helper(play_text = play_text)
+    
+    def submit_text_helper(self, play_text = None):
+
+        if play_text is None:
+            #Load from GUI if play text not set
+            text = self.text_input.get("1.0", tk.END).strip()
+        else:
+            text = play_text
 
         if not text:
             messagebox.showinfo("Error", "Please enter some text to synthesize.")
             return
+        
+        selected_voice = self.voice_var.get()
         
         # Convert device names to indices
         primary_index = self.available_devices.get(self.device_index.get(), None)
@@ -402,9 +482,6 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
         try:
             # Open all files and start all streams
             for file_path, device_index in zip(file_paths, device_indices):
-
-
-
 
                 try:
                     # Ensure the file_path is a string when opening the file
@@ -532,11 +609,11 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
         finally:
             p.terminate()
     
-    def toggle_recording(self):
+    def toggle_recording(self, auto_play=False):
         if not self.recording:
             self.start_recording()
         else:
-            self.stop_recording()
+            self.stop_recording(auto_play)
 
     def stop_recording_btn_change(self, btn_text):
         self.record_button.config(text=btn_text)
@@ -569,6 +646,8 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
         try:
             self.recording = True
             self.record_button.config(text="Stop and Insert", style='Recording.TButton')
+            self.submit_button.config(text="Stop and Play", style='Recording.TButton')
+
             self.frames = []
 
             self.p = pyaudio.PyAudio()
@@ -587,7 +666,7 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
             messagebox.showerror("Recording Error", f"Failed to record audio: {str(e)}")
             self.stop_recording(True)
 
-    def stop_recording(self, cancel_save=False):
+    def stop_recording(self, cancel_save=False, auto_play=False):
         self.recording = False
         if self.record_thread:
             self.record_thread.join()
@@ -600,12 +679,13 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
             self.p.terminate()
 
         if cancel_save==False:
-            self.save_recording()
+            self.save_recording(auto_play=auto_play)
         
         self.record_button.config(text="Record Mic", style='TButton')  # Revert to default style
+        self.submit_button.config(text="Play", style='Green.TButton')  # Revert to default style
 
 
-    def save_recording(self):
+    def save_recording(self, auto_play = False):
         file_path = "output.wav"
         wf = wave.open(file_path, 'wb')
         wf.setnchannels(1)
@@ -615,12 +695,12 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
         wf.close()
         print("Recording saved.")
 
-        self.after(0, self.transcribe_audio, file_path)
+        self.after(0, self.transcribe_audio, file_path, auto_play)
     
 
 
 
-    def transcribe_audio(self, file_path):
+    def transcribe_audio(self, file_path, auto_play = False):
         try:
             with open(str(file_path), "rb") as audio_file:
                 transcription = self.client.audio.transcriptions.create(
@@ -628,7 +708,6 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
                     model="whisper-1",
                     response_format="verbose_json"
                 )
-            
 
             settings = self.load_settings()
 
@@ -641,13 +720,20 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
 
             if auto_apply_ai:
                 print("applying ai")
-                self.apply_ai(transcription.text)
+                play_text = self.apply_ai(transcription.text)
             else:
                 print("outputting without ai")
                 #This prevents issues with trying to upload TK after thread operations
                 #whcih can cause crashes with no error displayed
                 self.text_input.delete("1.0", tk.END)  # Clear existing text
                 self.text_input.insert("1.0", transcription.text)  # Insert new text
+                play_text = transcription.text
+
+            if auto_play:
+                #self.submit_text(play_text = playtext)#
+                print(f"Triggering auto play with: {play_text} ")
+                self.submit_text_helper(play_text = play_text)
+                # TODO: PLAY THE TEXT IMMEDIATELY
             
             print("Transcription Complete: The audio has been transcribed and the text has been placed in the input area.")
             #messagebox.showinfo("Transcription Complete", "The audio has been transcribed and the text has been placed in the input area.")
@@ -761,6 +847,12 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
             )
             self.text_input.delete("1.0", tk.END)
             self.text_input.insert("1.0", response.choices[0].message.content)
+
+            return_text = response.choices[0].message.content
+        else:
+            return_text = text
+
+        return return_text
 
 
 if __name__ == "__main__":

@@ -63,6 +63,9 @@ To get this script working you will need to install the following on the relevan
 * pip install python-dotenv
 * pip install wave
 * pip install pydub
+* pip install keyboard
+* pip install pystray
+* pip install playsound
 
 
 ### Mac
@@ -76,6 +79,7 @@ To get this script working you will need to install the following on the relevan
 * pip3 install openai
 * pip3 install wave
 * pip3 install pydub
+
 
 # Making an installer
 
