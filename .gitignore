@@ -5,3 +5,10 @@
 build/
 dist/
 settings.json
+
+
+.vs
+vs/
+.zip
+
+config/

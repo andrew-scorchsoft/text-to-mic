@@ -19,11 +19,10 @@ from pydub import AudioSegment
 from audioplayer import AudioPlayer
 
 
-
-
-# Load environment variables
-load_dotenv()
-
+# Modify the load environment variables to load from config/.env
+def load_env_file():
+    env_path = Path("config") / ".env"
+    load_dotenv(dotenv_path=env_path)
 
 class Application(tk.Tk):
 
@@ -41,6 +40,10 @@ class Application(tk.Tk):
         self.style.configure('Recording.TButton', background='red', foreground='white')
         self.style.configure("Green.TButton", background="green", foreground="white")
 
+
+        # Ensure that the config directory exists
+        self.ensure_config_directory()
+        load_env_file()
 
         # Ensure API Key is loaded or prompted for before initializing GUI components
         self.api_key = self.get_api_key()
@@ -62,6 +65,11 @@ class Application(tk.Tk):
         self.create_menu()
         self.initialize_gui()
         self.setup_hotkeys()
+    
+    def ensure_config_directory(self):
+        """Ensure the config directory exists."""
+        config_dir = Path("config")
+        config_dir.mkdir(parents=True, exist_ok=True)
 
     def show_version(self):
         instruction_window = tk.Toplevel(self)
@@ -84,6 +92,8 @@ class Application(tk.Tk):
         self.menubar.add_cascade(label="Settings", menu=settings_menu)
         settings_menu.add_command(label="Change API Key", command=self.change_api_key)
         settings_menu.add_command(label="ChatGPT Manipulation", command=self.chat_gpt_settings)
+        settings_menu.add_command(label="Hotkey Settings", command=self.hotkey_settings)  
+
 
         # Playback menu
         playback_menu = Menu(self.menubar, tearoff=0)
@@ -106,11 +116,77 @@ class Application(tk.Tk):
         help_menu.add_command(label="Hotkey Instructions", command=self.show_hotkey_instructions)
         
 
+    def hotkey_settings(self):
+        settings = self.load_settings()
+        hotkey_window = tk.Toplevel(self)
+        hotkey_window.title("Hotkey Settings")
+        hotkey_window.grab_set()  # Grab the focus on this toplevel window
+
+        main_frame = ttk.Frame(hotkey_window, padding="10")
+        main_frame.grid(column=0, row=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+
+        # Create dropdowns for each hotkey
+        keys = ["", "ctrl", "shift", "alt", "tab", "altgr"]
+        main_keys = list("abcdefghijklmnopqrstuvwxyz1234567890[];'#,./`") + \
+                [f"f{i}" for i in range(1, 13)]  # Add function keys F1 to F12
+
+        def create_hotkey_row(label_text, key_combo):
+            ttk.Label(main_frame, text=label_text).grid(row=create_hotkey_row.row, column=0, sticky=tk.W, pady=2)
+
+            var1 = tk.StringVar(value=key_combo[0] if len(key_combo) > 0 else "")
+            var2 = tk.StringVar(value=key_combo[1] if len(key_combo) > 1 else "")
+            var3 = tk.StringVar(value=key_combo[2] if len(key_combo) > 2 else "")
+
+            option_menu1 = ttk.OptionMenu(main_frame, var1, key_combo[0], *keys)
+            option_menu1.grid(row=create_hotkey_row.row, column=1, sticky=tk.W, pady=2)
+
+            option_menu2 = ttk.OptionMenu(main_frame, var2, key_combo[1] if len(key_combo) > 1 else "", *keys)
+            option_menu2.grid(row=create_hotkey_row.row, column=2, sticky=tk.W, pady=2)
+
+            option_menu3 = ttk.OptionMenu(main_frame, var3, key_combo[2] if len(key_combo) > 2 else "", *main_keys)
+            option_menu3.grid(row=create_hotkey_row.row, column=3, sticky=tk.W, pady=2)
+
+            create_hotkey_row.row += 1
+            return [var1, var2, var3]
+
+        create_hotkey_row.row = 0
+
+        record_start_stop_vars = create_hotkey_row("Record Start/Stop:", settings["hotkeys"]["record_start_stop"])
+        stop_recording_vars = create_hotkey_row("Stop Recording:", settings["hotkeys"]["stop_recording"])
+        play_last_audio_vars = create_hotkey_row("Play Last Audio:", settings["hotkeys"]["play_last_audio"])
+
+        # Save Button
+        save_btn = ttk.Button(main_frame, text="Save", command=lambda: self.save_hotkey_settings({
+            "record_start_stop": [record_start_stop_vars[0].get(), record_start_stop_vars[1].get(), record_start_stop_vars[2].get()],
+            "stop_recording": [stop_recording_vars[0].get(), stop_recording_vars[1].get(), stop_recording_vars[2].get()],
+            "play_last_audio": [play_last_audio_vars[0].get(), play_last_audio_vars[1].get(), play_last_audio_vars[2].get()]
+        }))
+        save_btn.grid(row=create_hotkey_row.row, column=1, sticky=tk.W + tk.E, pady=10)
+
+    
+    def save_hotkey_settings(self, hotkeys):
+        settings = self.load_settings()
+        settings["hotkeys"] = hotkeys
+        self.save_settings_to_JSON(settings)
+        self.setup_hotkeys()  # Re-register the hotkeys with the new settings
+        messagebox.showinfo("Settings Updated", "Your hotkey settings have been saved successfully.")
+
     def setup_hotkeys(self):
-        # Register global hotkeys
-        keyboard.add_hotkey('ctrl+shift+0', lambda: self.hotkey_record_trigger())
-        keyboard.add_hotkey('ctrl+shift+9', lambda: self.hotkey_stop_trigger() )
-        keyboard.add_hotkey('ctrl+shift+8', lambda: self.hotkey_play_last_audio_trigger() )
+        try:
+            # Attempt to clear existing hotkeys
+            keyboard.unhook_all()  # This should clear all hotkeys in some versions of the library.
+        except AttributeError:
+            pass  # Ignore if the method isn't supported
+
+        settings = self.load_settings()
+
+        def parse_hotkey(combo):
+            return '+'.join(filter(None, combo))
+
+        keyboard.add_hotkey(parse_hotkey(settings["hotkeys"]["record_start_stop"]), lambda: self.hotkey_record_trigger())
+        keyboard.add_hotkey(parse_hotkey(settings["hotkeys"]["stop_recording"]), lambda: self.hotkey_stop_trigger())
+        keyboard.add_hotkey(parse_hotkey(settings["hotkeys"]["play_last_audio"]), lambda: self.hotkey_play_last_audio_trigger())
+
 
     def hotkey_play_last_audio_trigger(self):
         if hasattr(self, 'last_audio_file'):
@@ -340,10 +416,25 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
         return app_support_path
     
     def save_api_key_mac(self, api_key):
-        env_path = self.get_app_support_path_mac() / '.env'
+        env_path = self.get_app_support_path_mac() / 'config' / '.env'
         with open(env_path, 'w') as f:
             f.write(f"OPENAI_API_KEY={api_key}\n")
         # Consider manually loading this .env file into your environment as needed
+
+    def save_api_key(self, api_key):
+        """Save the API key to the config/.env file."""
+        try:
+            config_dir = Path("config")
+            config_dir.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
+
+            env_path = config_dir / ".env"
+            with open(env_path, 'w') as f:
+                f.write(f"OPENAI_API_KEY={api_key}\n")
+
+            load_dotenv(dotenv_path=env_path)  # Reload environment to include the new API key
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save API key: {str(e)}")
 
     def load_api_key_mac(self):
         env_path = self.get_app_support_path_mac() / '.env'
@@ -379,16 +470,7 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
         return api_key
 
 
-    def save_api_key(self, api_key):
-        try:
-            if platform.system() == 'Darwin':
-                self.save_api_key_mac(api_key)
-            else:
-                with open('.env', 'w') as f:
-                    f.write(f"OPENAI_API_KEY={api_key}\n")
-                load_dotenv()  # Reload environment to include the new API key
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to save API key: {str(e)}")
+
 
 
     def get_audio_devices(self):
@@ -759,16 +841,27 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
         except Exception as e:
             print(f"Transcription error: An error occurred during transcription: {str(e)}")
     
+
     def load_settings(self):
-        # Determine file path based on the operating system
         settings_file = self.get_settings_file_path("settings.json")
-        
         try:
             with open(settings_file, "r") as f:
-                return json.load(f)
+                settings = json.load(f)
         except FileNotFoundError:
             # Default settings
-            return {"chat_gpt_completion": False, "model": "gpt-3.5-turbo", "prompt": "", "auto_apply": False}
+            settings = {
+                "chat_gpt_completion": False,
+                "model": "gpt-4o-mini",
+                "prompt": "",
+                "auto_apply_ai_to_recording": False,
+                "hotkeys": {
+                    "record_start_stop": ["ctrl", "shift", "0"],
+                    "stop_recording": ["ctrl", "shift", "9"],
+                    "play_last_audio": ["ctrl", "shift", "8"]
+                }
+            }
+            self.save_settings_to_JSON(settings)
+        return settings
 
     def save_settings_to_JSON(self, settings):
         settings_file = self.get_settings_file_path("settings.json")
@@ -802,7 +895,7 @@ https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
         # Model selection
         model_var = tk.StringVar(value=settings.get("model", "gpt-3.5-turbo"))
         ttk.Label(main_frame, text="Model:").grid(row=1, column=0, sticky=tk.W, pady=2)
-        ttk.OptionMenu(main_frame, model_var, "gpt-3.5-turbo", "gpt-3.5-turbo", "gpt-4-turbo").grid(row=1, column=1, sticky=tk.W, pady=2)
+        ttk.OptionMenu(main_frame, model_var, "gpt-4o-mini", "gpt-4o", "gpt-4-turbo").grid(row=1, column=1, sticky=tk.W, pady=2)
 
         # Max Tokens selection
         max_tokens_var = tk.IntVar(value=settings.get("max_tokens", 750))
