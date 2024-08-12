@@ -76,7 +76,7 @@ class Application(tk.Tk):
         instruction_window.title("App Version")
         instruction_window.geometry("300x150")  # Width x Height
 
-        instructions = """Version 1.0.7\n\n App by Scorchsoft.com"""
+        instructions = """Version 1.0.8\n\n App by Scorchsoft.com"""
         
         tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=280).pack(padx=10, pady=10)
         
