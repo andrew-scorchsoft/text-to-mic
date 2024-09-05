@@ -1,9 +1,29 @@
 # Readme
 
-This script uses OpenAI to convert text to speech, and then speak that speech over a virtual microphone.
+## About
+
+**Text to Mic** is a powerful, user-friendly application that seamlessly converts written text into natural-sounding speech, playing it over a virtual microphone. This tool is perfect for situations where you want to automate voice output — whether it's for presentations, online meetings, voiceovers, or accessibility purposes.
 
 ![Example Image 1](images/app-screenshot-v1-0-0.png)
 
+More info about Text to Mic including a changelog can be found here:
+https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
+
+Developed by Scorchsoft, a leading app development agency, Text to Mic leverages the advanced capabilities of OpenAI's speech synthesis models to produce high-quality audio output. By using a virtual microphone (created with VB-Cable), it allows you to stream generated speech to any application that accepts microphone input, such as Zoom, Google Meet, Microsoft Teams, or any other conferencing tool.
+
+### Key Features:
+- **Seamless Text-to-Speech Conversion**: Converts any text into clear, human-like speech with just a few clicks or commands.
+- **Virtual Microphone Integration**: Outputs speech directly to a virtual microphone, allowing you to use it in any communication or recording software.
+- **Custom Voice Selection**: Choose from various voice profiles to match the tone and style you need.
+- **Cross-Platform Compatibility**: Works on both Windows and macOS, with an easy-to-use graphical interface or command line option.
+- **OpenAI API Integration**: Utilises the power of OpenAI's state-of-the-art models to ensure the best speech synthesis quality.
+
+
+Text to Mic is designed to be versatile and efficient, providing users with a reliable tool for dynamic speech generation and broadcasting. Whether you need to narrate text in real time during a virtual event or automate responses in an online environment, Text to Mic has you covered.
+
+This script uses OpenAI to convert text to speech, and then speak that speech over a virtual microphone. Yes this means you need to pay for API call use, and yes there are free TTS tools available. OpenAI has been used due to it's higher TTS accuracy and reduced latency.
+
+This project is licensed under the terms of the [GNU Lesser General Public License (LGPL) v3.0](LICENSE.md) as well as additional terms of use. By using this software, you agree to the terms and conditions outlined in the [LICENSE.md](LICENSE.md) file.
 
 
 ## Running the GUI version
