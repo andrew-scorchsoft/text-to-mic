@@ -4,6 +4,8 @@ This script uses OpenAI to convert text to speech, and then speak that speech ov
 
 ![Example Image 1](images/app-screenshot-v1-0-0.png)
 
+
+
 ## Running the GUI version
 
 1. Install VB-Cable if you haven't already
@@ -49,37 +51,26 @@ Now that you know your headphone device id, and the cable input id, you can now 
 python text-to-mic.py "Text you'd like to speak" 8 5
 
 
-
-
-
-
 # Dependencies
 
 To get this script working you will need to install the following on the relevant operating system
 
 ### Windows
-* pip install tk
-* pip install pyaudio
-* pip install python-dotenv
-* pip install wave
-* pip install pydub
-* pip install keyboard
-* pip install pystray
-* pip install pygame
+`pip install tk pyaudio audioplayer python-dotenv wave pydub keyboard pystray pygame`
 
 
 
 ### Mac
 
-* brew install portaudio
-* brew install python-tk
-* python3 -m venv ~/code/scorchsoft/text-to-mic-feed
-* source ~/code/scorchsoft/text-to-mic-feed/bin/activate
-* pip3 install python-dotenv
-* pip3 install pyaudio
-* pip3 install openai
-* pip3 install wave
-* pip3 install pydub
+`brew install portaudio`
+`brew install python-tk`
+`python3 -m venv ~/code/scorchsoft/text-to-mic-feed`
+`source ~/code/scorchsoft/text-to-mic-feed/bin/activate`
+`pip3 install python-dotenv`
+`pip3 install pyaudio audioplayer`
+`pip3 install openai`
+`pip3 install wave`
+`pip3 install pydub`
 
 
 # Making an installer
@@ -93,7 +84,7 @@ OLD:
 python -m PyInstaller --onefile --windowed text-to-mic.py
 
 New
-python -m PyInstaller --onefile --add-data "assets;assets" text-to-mic.py
+python -m PyInstaller --onefile --windowed --add-data "assets;assets" text-to-mic.py
 
 ## Mac
 
