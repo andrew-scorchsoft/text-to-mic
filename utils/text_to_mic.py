@@ -30,6 +30,11 @@ class TextToMic(tk.Tk):
         super().__init__()
 
         self.title("Scorchsoft Text to Mic")
+        self.default_geometry = "590x800"
+        self.geometry(self.default_geometry) 
+
+
+
         self.style = ttk.Style(self)
         if self.tk.call('tk', 'windowingsystem') == 'aqua':
             self.style.theme_use('aqua')
@@ -295,28 +300,46 @@ class TextToMic(tk.Tk):
         secondary_device_menu = ttk.OptionMenu(main_frame, self.device_index_2, "None", *self.available_devices.keys())
         secondary_device_menu.grid(column=1, row=3, sticky=tk.W)
 
-        # Preset selection and save button
+
+        spacer = ttk.Frame(main_frame, height=20)  # Adjust height as needed
+        spacer.grid(column=0, row=4, columnspan=2)  # Place spacer in the grid
+
+
+        # Text to Read Label
+        ttk.Label(main_frame, text="Text to Read:").grid(column=0, row=5, sticky=tk.W, pady=(10, 0))
+
+        # Create a frame to contain the dropdown and save button
+        save_frame = ttk.Frame(main_frame)
+        save_frame.grid(column=1, row=5, sticky=tk.E, padx=(5, 0), pady=(5, 0))  # Align to the top right
+
+        # Preset Category dropdown
         self.category_var = tk.StringVar(value="Select Category")
         categories = [cat["category"] for cat in self.presets]
-        ttk.OptionMenu(main_frame, self.category_var, *categories).grid(column=1, row=4, sticky=tk.W)
+        category_menu = ttk.OptionMenu(save_frame, self.category_var, *categories)
+        category_menu.grid(column=0, row=0, sticky=tk.E, padx=(0, 5))  # Adjust padding for alignment
 
-        save_button = ttk.Button(main_frame, text="Save", command=self.save_current_text_as_preset)
-        save_button.grid(column=2, row=4, sticky=tk.E)
+        # Save button, reduced size
+        save_button = ttk.Button(save_frame, text="Save", width=8, command=self.save_current_text_as_preset)
 
+        save_button.grid(column=1, row=0, sticky=tk.E)  # Align to the right
+        
         # Specify the text to read
-        ttk.Label(main_frame, text="Text to Read:").grid(column=0, row=4, sticky=tk.W, pady=(10, 0))
-        self.text_input = tk.Text(main_frame, height=10, width=50)
-        self.text_input.grid(column=0, row=5, columnspan=2, pady=(0, 20))  # Padding added before submit button
+        self.text_input = tk.Text(main_frame, height=10, width=68)
+        self.text_input.grid(column=0, row=6, columnspan=2, pady=(0, 20), sticky="nsew")  # Fill available width
+
+
+
+
         
 
         # Button configuration
 
         self.recording = False  # State to check if currently recording
         self.record_button = ttk.Button(main_frame, text="Record Mic", command=self.toggle_recording)
-        self.record_button.grid(column=0, row=6, sticky=tk.W + tk.E, pady=(0, 20), padx=(0, 10))  # Left padding to separate buttons
+        self.record_button.grid(column=0, row=7, sticky=tk.W + tk.E, pady=(0, 20), padx=(0, 10))  # Left padding to separate buttons
 
         self.submit_button = ttk.Button(main_frame, text="Play Audio", style="Green.TButton", command=self.submit_text )
-        self.submit_button.grid(column=1, row=6, sticky=tk.W + tk.E, pady=(0, 20), padx=(10, 0))  # Right padding to separate buttons
+        self.submit_button.grid(column=1, row=7, sticky=tk.W + tk.E, pady=(0, 20), padx=(10, 0))  # Right padding to separate buttons
 
 
 
@@ -326,7 +349,7 @@ class TextToMic(tk.Tk):
 
         #Credits
         info_label = tk.Label(main_frame, text="Created by Scorchsoft.com App Development", fg="blue", cursor="hand2")
-        info_label.grid(column=0, row=9, columnspan=2, pady=(0, 0))
+        info_label.grid(column=0, row=10, columnspan=2, pady=(0, 0))
         info_label.bind("<Button-1>", lambda e: self.open_scorchsoft())
 
 
@@ -335,8 +358,8 @@ class TextToMic(tk.Tk):
         # Accordion frame to show/hide presets section
         self.presets_frame = ttk.Frame(self)
         self.presets_button = ttk.Button(self, text="▶ Presets", command=self.toggle_presets)
-        self.presets_button.grid(column=0, row=7, columnspan=2, sticky=tk.W)
-        self.presets_frame.grid(column=0, row=8, columnspan=2, sticky=(tk.W, tk.E))
+        self.presets_button.grid(column=0, row=8, columnspan=2, sticky=tk.W)
+        self.presets_frame.grid(column=0, row=9, columnspan=2, sticky=(tk.W, tk.E))
 
         # Tabs for categories with scrolling arrows
         self.tab_frame = ttk.Frame(self.presets_frame)
@@ -375,7 +398,8 @@ class TextToMic(tk.Tk):
         # Populate tabs and presets
         self.populate_tabs()
         self.refresh_presets_display()
-
+        self.toggle_presets()
+        self.toggle_presets()
 
 
     def scroll_left(self):
@@ -1117,18 +1141,26 @@ Please also make sure you read the Terms of use and licence statement before usi
 
         # Update canvas width to calculate dynamic column width
         self.presets_canvas.update_idletasks()
-        preset_width = max(self.presets_canvas.winfo_width() // 3, 100)  # Minimum width of 100
+        preset_width = max(self.presets_canvas.winfo_width() // 3, 150)  # Minimum width of 100
         preset_height = 100
+
+        print(f"preset width: {preset_width}")
 
         # Configure columns to fill available space
         for col in range(3):
             self.presets_scrollable_frame.columnconfigure(col, weight=1)
 
+
         # Populate filtered presets in grid layout
         for i, phrase in enumerate(display_phrases):
             frame = ttk.Frame(self.presets_scrollable_frame, width=preset_width, height=preset_height, relief="solid", borderwidth=1)
-            frame.grid(row=i // 3, column=i % 3, padx=2, pady=2, sticky="nsew")
+            frame.grid(row=i // 4, column=i % 4, padx=2, pady=2, sticky="nsew")
             frame.grid_propagate(False)
+
+            self.presets_scrollable_frame.grid_columnconfigure(i % 4, weight=1)  # Make columns expandable
+            self.presets_scrollable_frame.grid_rowconfigure(i // 4, weight=1)    # Make rows expandable
+
+
 
             # Text label with truncation for long text
             wrapped_text = self.wrap_text(phrase["text"], max_lines=3, max_chars_per_line=20)
@@ -1210,9 +1242,11 @@ Please also make sure you read the Terms of use and licence statement before usi
         if self.presets_collapsed:
             self.presets_frame.grid()
             self.presets_button.config(text="▼ Presets")
+            self.geometry(self.default_geometry)  
         else:
             self.presets_frame.grid_remove()
             self.presets_button.config(text="▶ Presets")
+            self.geometry("590x520") 
         self.presets_collapsed = not self.presets_collapsed
 
 
@@ -1222,6 +1256,11 @@ Please also make sure you read the Terms of use and licence statement before usi
         category = self.category_var.get()
         if text and category != "Select Category":
             self.add_preset(category, text, is_favourite=False)
+            # Show success message with category information
+            messagebox.showinfo("Save Successful", f"The text has been successfully saved to the category: '{category}'.")
+        else:
+            messagebox.showinfo("Error", "Please enter text and select a category before saving.")
+
 
     def load_presets(self):
         """Load presets from the JSON file."""
