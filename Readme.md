@@ -71,7 +71,7 @@ You can use a hotkey combination to quickly trigger recording and playing of rec
 
 ### 3. Presets 
 
-Click the presets button at the bottom of the app to open the presets area.
+Click the presets button at the bottom of the app to open the presets area. You can then click a preset to auto add it to the "Text to Read" section, or double click it to immediately play it back.
 
 Once loaded for the first time, presets are stored in "config/presets.json", this means if you close the app you can edit these and add categories etc via notepad. If you do this, please make sure you don't break or invalidate the json structure.
 
