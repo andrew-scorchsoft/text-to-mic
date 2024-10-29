@@ -1299,7 +1299,7 @@ Please also make sure you read the Terms of use and licence statement before usi
     def load_presets(self):
         """Load presets from the JSON file, copying from example if necessary."""
         presets_path = Path("config/presets.json")
-        example_path = self.resource_path("presets.example.json")  # Path for the example file
+        example_path = self.resource_path("assets/presets.example.json")  # Path for the example file
 
         # Check if presets.json exists, and if not, copy presets.example.json to config
         if not presets_path.exists():
