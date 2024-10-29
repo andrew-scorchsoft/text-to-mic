@@ -4,7 +4,7 @@
 
 **Text to Mic** is a powerful, user-friendly application that seamlessly converts written text into natural-sounding speech, playing it over a virtual microphone. This tool is perfect for situations where you want to automate voice output — whether it's for presentations, online meetings, voiceovers, or accessibility purposes.
 
-![Example Image 1](images/app-screenshot-v1-0-0.png)
+![Example Image 1](images/app-screenshot-v1-0-9.png)
 
 More info about Text to Mic including a changelog can be found here:
 https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
@@ -49,6 +49,35 @@ https://platform.openai.com/docs/quickstart/account-setup
 6. You can change the API key at any time under the 'Settings' menu.
 
 This tool was brought to you by Scorchsoft - We build custom apps to your requirements. Please contact us if you have a requirement for a custom app project.
+
+## Advanced Tips
+
+
+### 1. ChatGPT AI Manipulation
+
+If you go to "Settings > ChatGPT Manipulation" then you can turn this on and pick which model to use.
+
+![ChatGPT Manipulation](images/chatgpt-manipulation.png)
+
+If enabled (both enabled and "auto apply to recorded transcript"), this will run your transcript through AI with the desired prompt each time you record your voice and convert it to text.
+
+If you've enabled but not turned on auto apply, then you can manually trigger this action to any text you've input into "text to Read" via the context menu "Input > Apply AI manipulation to text input". This will only work if you've turned it on and added your API key
+
+### 2. Hotkeys
+
+You can use a hotkey combination to quickly trigger recording and playing of recorded text. By default the hot keys are "ctrl+shift+0" to start the recording, then press it again to stop, transcribe, and submit. "Ctrl+shift+9" stops the recording without playing it. "Ctrl+shift+8" replays the last transcribed or written text.
+
+"Settings > Hotkey Settings" allows you to customise the hotkey combinations used to trigger the above actions.
+
+### 3. Presets 
+
+Click the presets button at the bottom of the app to open the presets area.
+
+Once loaded for the first time, presets are stored in "config/presets.json", this means if you close the app you can edit these and add categories etc via notepad. If you do this, please make sure you don't break or invalidate the json structure.
+
+You can also edit presets from within the app, but this is limtied to saving new presets to an existing category, favouriting presets, and deleting them. Any other edits have to be completed by editing the json file.
+
+You can add a new preset by writing it into the "Text to Read" area, then at the top right of the area select the category you wish to add it to, and hit save.
 
 ## Running the CLI Version
 

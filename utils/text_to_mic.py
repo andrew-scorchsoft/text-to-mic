@@ -30,10 +30,11 @@ class TextToMic(tk.Tk):
         super().__init__()
 
         self.title("Scorchsoft Text to Mic")
-        self.default_geometry = "590x800"
+        self.default_geometry = "590x750"
         self.geometry(self.default_geometry) 
 
-
+        self.available_models = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo"]
+        self.default_model = "gpt-4o-mini"
 
         self.style = ttk.Style(self)
         if self.tk.call('tk', 'windowingsystem') == 'aqua':
@@ -88,7 +89,7 @@ class TextToMic(tk.Tk):
         instruction_window.title("App Version")
         instruction_window.geometry("300x150")  # Width x Height
 
-        instructions = """Version 1.1.0\n\n App by Scorchsoft.com"""
+        instructions = """Version 1.2.0\n\n App by Scorchsoft.com"""
         
         tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=280).pack(padx=10, pady=10)
         
@@ -324,7 +325,7 @@ class TextToMic(tk.Tk):
         save_button.grid(column=1, row=0, sticky=tk.E)  # Align to the right
         
         # Specify the text to read
-        self.text_input = tk.Text(main_frame, height=10, width=68)
+        self.text_input = tk.Text(main_frame, height=5, width=68)
         self.text_input.grid(column=0, row=6, columnspan=2, pady=(0, 20), sticky="nsew")  # Fill available width
 
 
@@ -380,7 +381,7 @@ class TextToMic(tk.Tk):
         self.right_arrow.pack(side=tk.RIGHT, padx=1)  # Reduced padding
 
         # Presets display area with a fixed height and vertical scrollbar
-        self.presets_canvas = Canvas(self.presets_frame, height=200, width=self.presets_frame.winfo_width())
+        self.presets_canvas = Canvas(self.presets_frame, height=250, width=self.presets_frame.winfo_width())
         self.presets_scrollbar = Scrollbar(self.presets_frame, orient="vertical", command=self.presets_canvas.yview)
         self.presets_canvas.configure(yscrollcommand=self.presets_scrollbar.set)
 
@@ -400,6 +401,8 @@ class TextToMic(tk.Tk):
         self.refresh_presets_display()
         self.toggle_presets()
         self.toggle_presets()
+        self.enable_mouse_wheel_scrolling()
+
 
 
     def scroll_left(self):
@@ -409,8 +412,36 @@ class TextToMic(tk.Tk):
         self.tabs_canvas.xview_scroll(5, "units")
 
 
+    def enable_mouse_wheel_scrolling(self):
+        """Enable conditional mouse wheel scrolling for the presets canvas and category tabs canvas."""
 
-    
+        def on_vertical_scroll(event):
+            # Scroll the presets_canvas vertically
+            if event.num == 4:  # macOS scroll up
+                self.presets_canvas.yview_scroll(-1, "units")
+            elif event.num == 5:  # macOS scroll down
+                self.presets_canvas.yview_scroll(1, "units")
+            else:  # Windows and Linux
+                self.presets_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        def on_horizontal_scroll(event):
+            # Scroll the tabs_canvas horizontally
+            if event.num == 4:  # macOS scroll left
+                self.tabs_canvas.xview_scroll(-1, "units")
+            elif event.num == 5:  # macOS scroll right
+                self.tabs_canvas.xview_scroll(1, "units")
+            else:  # Windows and Linux
+                self.tabs_canvas.xview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        # Bind scroll events when mouse enters or leaves the presets canvas area
+        self.presets_canvas.bind("<Enter>", lambda e: self.presets_canvas.bind_all("<MouseWheel>", on_vertical_scroll))
+        self.presets_canvas.bind("<Leave>", lambda e: self.presets_canvas.unbind_all("<MouseWheel>"))
+
+        # Bind scroll events when mouse enters or leaves the tabs canvas area
+        self.tabs_canvas.bind("<Enter>", lambda e: self.tabs_canvas.bind_all("<MouseWheel>", on_horizontal_scroll))
+        self.tabs_canvas.bind("<Leave>", lambda e: self.tabs_canvas.unbind_all("<MouseWheel>"))
+
+
     
     def open_scorchsoft(self, event=None):
         webbrowser.open('https://www.scorchsoft.com')
@@ -975,7 +1006,7 @@ Please also make sure you read the Terms of use and licence statement before usi
             # Default settings
             settings = {
                 "chat_gpt_completion": False,
-                "model": "gpt-4o-mini",
+                "model": self.default_model,
                 "prompt": "",
                 "auto_apply_ai_to_recording": False,
                 "hotkeys": {
@@ -1016,10 +1047,13 @@ Please also make sure you read the Terms of use and licence statement before usi
         enable_completion = tk.BooleanVar(value=settings.get("chat_gpt_completion", False))
         ttk.Checkbutton(main_frame, text="Enable ChatGPT Completion", variable=enable_completion).grid(row=0, column=1, sticky=tk.W, pady=2)
 
-        # Model selection
-        model_var = tk.StringVar(value=settings.get("model", "gpt-3.5-turbo"))
+        # Model selection#
+
+
+        model_var = tk.StringVar(value=settings.get("model", self.default_model))
         ttk.Label(main_frame, text="Model:").grid(row=1, column=0, sticky=tk.W, pady=2)
-        ttk.OptionMenu(main_frame, model_var, "gpt-4o-mini", "gpt-4o", "gpt-4-turbo").grid(row=1, column=1, sticky=tk.W, pady=2)
+        model_menu = ttk.OptionMenu(main_frame, model_var, model_var.get(), *self.available_models)
+        model_menu.grid(row=1, column=1, sticky=tk.W, pady=2)
 
         # Max Tokens selection
         max_tokens_var = tk.IntVar(value=settings.get("max_tokens", 750))
@@ -1173,27 +1207,27 @@ Please also make sure you read the Terms of use and licence statement before usi
             bottom_frame = ttk.Frame(frame)
             bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=2)
 
+            self.style.configure("Flat.TButton",
+                     borderwidth=0,
+                     highlightthickness=0,
+                     font=("Arial", 12),  # Adjust font and size
+                     anchor="center")     # Center text
+
+
             # Favourite button
             fav_icon = "❤️" if phrase["isFavourite"] else "♡"
-            fav_btn = ttk.Button(bottom_frame, text=fav_icon, command=lambda p=phrase: self.toggle_favourite(p), width=3, style="Flat.TButton")
+            fav_btn = ttk.Button(bottom_frame, text=fav_icon, command=lambda p=phrase: self.toggle_favourite(p), width=2, style="Flat.TButton")
             fav_btn.pack(side=tk.RIGHT, padx=2)
+            #fav_btn.config(borderwidth=0, highlightthickness=0)  # Remove border
 
             # Delete button
-            del_btn = ttk.Button(bottom_frame, text="🗑️", command=lambda t=phrase["text"]: self.delete_preset(self.current_category, t), width=3, style="Flat.TButton")
+            del_btn = ttk.Button(bottom_frame, text="🗑️", command=lambda t=phrase["text"]: self.delete_preset(self.current_category, t), width=2, style="Flat.TButton")
             del_btn.pack(side=tk.RIGHT, padx=2)
+            #del_btn.config(borderwidth=0, highlightthickness=0)  # Remove border
+
 
         # Update scroll region after populating all items
         self.presets_canvas.configure(scrollregion=self.presets_canvas.bbox("all"))
-
-
-
-
-
-
-
-
-
-
 
 
     def wrap_text(self, text, max_lines=3, max_chars_per_line=20):
@@ -1246,7 +1280,7 @@ Please also make sure you read the Terms of use and licence statement before usi
         else:
             self.presets_frame.grid_remove()
             self.presets_button.config(text="▶ Presets")
-            self.geometry("590x520") 
+            self.geometry("590x460") 
         self.presets_collapsed = not self.presets_collapsed
 
 
@@ -1263,14 +1297,32 @@ Please also make sure you read the Terms of use and licence statement before usi
 
 
     def load_presets(self):
-        """Load presets from the JSON file."""
+        """Load presets from the JSON file, copying from example if necessary."""
+        presets_path = Path("config/presets.json")
+        example_path = self.resource_path("presets.example.json")  # Path for the example file
+
+        # Check if presets.json exists, and if not, copy presets.example.json to config
+        if not presets_path.exists():
+            try:
+                # Ensure config directory exists
+                presets_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Copy example presets to config directory
+                with open(example_path, "r", encoding="utf-8") as example_file:
+                    with open(presets_path, "w", encoding="utf-8") as config_file:
+                        config_file.write(example_file.read())
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to copy example presets: {e}")
+                return []  # Return empty if unable to load or copy presets
+
+        # Load presets.json as usual
         try:
-            with open("config/presets.json", "r") as f:
+            with open(presets_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             return data.get("presets", [])
-        except (FileNotFoundError, json.JSONDecodeError):
-            # Create a default structure if the file doesn't exist or is corrupted
-            return []
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            messagebox.showerror("Error", f"Error loading presets: {e}")
+            return []  # Default to empty if load fails
 
     def save_presets(self):
         """Save presets to the JSON file."""
