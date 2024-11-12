@@ -1,12 +1,12 @@
 .env
 .env_backup
-*.wav
 *.mp3
 build/
 dist/
 settings.json
-
-
+resampled_last_output.wav
+output.wav
+last_output.wav
 .vs
 vs/
 .zip
