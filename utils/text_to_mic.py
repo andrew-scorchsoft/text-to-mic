@@ -6,7 +6,6 @@ import pyaudio
 import wave
 import webbrowser
 import json
-import keyboard
 import sys
 
 from pystray import Icon as icon, MenuItem as item, Menu as menu
@@ -16,8 +15,11 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from pathlib import Path
 from pydub import AudioSegment
-from audioplayer import AudioPlayer
 
+# Import our refactored classes
+from utils.api_key_manager import APIKeyManager
+from utils.hotkey_manager import HotkeyManager
+from utils.resource_utils import ResourceUtils
 
 # Modify the load environment variables to load from config/.env
 def load_env_file():
@@ -55,8 +57,8 @@ class TextToMic(tk.Tk):
         self.ensure_config_directory()
         load_env_file()
 
-        # Ensure API Key is loaded or prompted for before initializing GUI components
-        self.api_key = self.get_api_key()
+        # Get API key using APIKeyManager
+        self.api_key = APIKeyManager.get_api_key(self)
         if not self.api_key:
             messagebox.showinfo("API Key Needed", "Please provide your OpenAI API Key.")
             self.destroy()
@@ -74,11 +76,10 @@ class TextToMic(tk.Tk):
 
         self.create_menu()
         self.initialize_gui()
-        self.setup_hotkeys()
-
-
         
-    
+        # Initialize our HotkeyManager
+        self.hotkey_manager = HotkeyManager(self)
+
     def ensure_config_directory(self):
         """Ensure the config directory exists."""
         config_dir = Path("config")
@@ -105,14 +106,13 @@ class TextToMic(tk.Tk):
         self.menubar.add_cascade(label="Settings", menu=settings_menu)
         settings_menu.add_command(label="Change API Key", command=self.change_api_key)
         settings_menu.add_command(label="ChatGPT Manipulation", command=self.chat_gpt_settings)
-        settings_menu.add_command(label="Hotkey Settings", command=self.hotkey_settings)  
+        settings_menu.add_command(label="Hotkey Settings", command=self.show_hotkey_settings)  
 
 
         # Playback menu
         playback_menu = Menu(self.menubar, tearoff=0)
         self.menubar.add_cascade(label="Playback", menu=playback_menu)
         playback_menu.add_command(label="Play Last Audio", command=self.play_last_audio)
-        #playback_menu.add_command(label="Input Speech to Text", command=self.input_speech_to_text)
 
         #apply_ai
         input_menu = Menu(self.menubar, tearoff=0)
@@ -127,136 +127,36 @@ class TextToMic(tk.Tk):
         help_menu.add_command(label="Terms of Use and Licence", command=self.show_terms_of_use)
         help_menu.add_command(label="Version", command=self.show_version)
         help_menu.add_command(label="Hotkey Instructions", command=self.show_hotkey_instructions)
-        
 
+    def show_hotkey_settings(self):
+        """Show the hotkey settings dialog."""
+        HotkeyManager.hotkey_settings_dialog(self)
 
-    def hotkey_settings(self):
-        settings = self.load_settings()
-        hotkey_window = tk.Toplevel(self)
-        hotkey_window.title("Hotkey Settings")
-        hotkey_window.grab_set()  # Grab the focus on this toplevel window
+    def show_hotkey_instructions(self):
+        """Show hotkey instructions."""
+        HotkeyManager.show_hotkey_instructions(self)
 
-        main_frame = ttk.Frame(hotkey_window, padding="10")
-        main_frame.grid(column=0, row=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+    def change_api_key(self):
+        """Change the API key using APIKeyManager."""
+        new_key = APIKeyManager.change_api_key(self)
+        if new_key:
+            self.api_key = new_key
+            self.client = OpenAI(api_key=self.api_key)
 
-        # Create dropdowns for each hotkey
-        keys = ["", "ctrl", "shift", "alt", "tab", "altgr"]
-        main_keys = list("abcdefghijklmnopqrstuvwxyz1234567890[];'#,./`") + \
-                [f"f{i}" for i in range(1, 13)]  # Add function keys F1 to F12
-
-        def create_hotkey_row(label_text, key_combo):
-            ttk.Label(main_frame, text=label_text).grid(row=create_hotkey_row.row, column=0, sticky=tk.W, pady=2)
-
-            var1 = tk.StringVar(value=key_combo[0] if len(key_combo) > 0 else "")
-            var2 = tk.StringVar(value=key_combo[1] if len(key_combo) > 1 else "")
-            var3 = tk.StringVar(value=key_combo[2] if len(key_combo) > 2 else "")
-
-            option_menu1 = ttk.OptionMenu(main_frame, var1, key_combo[0], *keys)
-            option_menu1.grid(row=create_hotkey_row.row, column=1, sticky=tk.W, pady=2)
-
-            option_menu2 = ttk.OptionMenu(main_frame, var2, key_combo[1] if len(key_combo) > 1 else "", *keys)
-            option_menu2.grid(row=create_hotkey_row.row, column=2, sticky=tk.W, pady=2)
-
-            option_menu3 = ttk.OptionMenu(main_frame, var3, key_combo[2] if len(key_combo) > 2 else "", *main_keys)
-            option_menu3.grid(row=create_hotkey_row.row, column=3, sticky=tk.W, pady=2)
-
-            create_hotkey_row.row += 1
-            return [var1, var2, var3]
-
-        create_hotkey_row.row = 0
-
-        record_start_stop_vars = create_hotkey_row("Record Start/Stop:", settings["hotkeys"]["record_start_stop"])
-        stop_recording_vars = create_hotkey_row("Stop Recording:", settings["hotkeys"]["stop_recording"])
-        play_last_audio_vars = create_hotkey_row("Play Last Audio:", settings["hotkeys"]["play_last_audio"])
-
-        # Save Button
-        save_btn = ttk.Button(main_frame, text="Save", command=lambda: self.save_hotkey_settings({
-            "record_start_stop": [record_start_stop_vars[0].get(), record_start_stop_vars[1].get(), record_start_stop_vars[2].get()],
-            "stop_recording": [stop_recording_vars[0].get(), stop_recording_vars[1].get(), stop_recording_vars[2].get()],
-            "play_last_audio": [play_last_audio_vars[0].get(), play_last_audio_vars[1].get(), play_last_audio_vars[2].get()]
-        }))
-        save_btn.grid(row=create_hotkey_row.row, column=1, sticky=tk.W + tk.E, pady=10)
-
-    
-    def save_hotkey_settings(self, hotkeys):
-        settings = self.load_settings()
-        settings["hotkeys"] = hotkeys
-        self.save_settings_to_JSON(settings)
-        self.setup_hotkeys()  # Re-register the hotkeys with the new settings
-        messagebox.showinfo("Settings Updated", "Your hotkey settings have been saved successfully.")
-
-    def setup_hotkeys(self):
-        try:
-            # Attempt to clear existing hotkeys
-            keyboard.unhook_all()  # This should clear all hotkeys in some versions of the library.
-        except AttributeError:
-            pass  # Ignore if the method isn't supported
-
-        settings = self.load_settings()
-
-        def parse_hotkey(combo):
-            return '+'.join(filter(None, combo))
-
-        keyboard.add_hotkey(parse_hotkey(settings["hotkeys"]["record_start_stop"]), lambda: self.hotkey_record_trigger())
-        keyboard.add_hotkey(parse_hotkey(settings["hotkeys"]["stop_recording"]), lambda: self.hotkey_stop_trigger())
-        keyboard.add_hotkey(parse_hotkey(settings["hotkeys"]["play_last_audio"]), lambda: self.hotkey_play_last_audio_trigger())
-
-
-    def hotkey_play_last_audio_trigger(self):
-        if hasattr(self, 'last_audio_file'):
-            self.play_last_audio()
+    def get_audio_file_path(self, filename):
+        if platform.system() == 'Darwin':  # Check if the OS is macOS
+            mac_path = APIKeyManager.get_app_support_path_mac()
+            return f"{mac_path}/{filename}"
         else:
-            self.play_sound('assets/no-last-audio.wav')
-            
-
-    def hotkey_stop_trigger(self):
-        self.play_sound('assets/wrong-short.wav')
-        if self.recording:
-            self.stop_recording(auto_play=False)
-            self.recording=False
-        
-    # Sounds from https://mixkit.co/free-sound-effects/notification/
-    def hotkey_record_trigger(self):
-
-        if self.recording:
-            self.play_sound('assets/pop.wav')
-            self.submit_text()
-        else:
-
-            if not self.recording:
-                self.start_recording(play_confirm_sound=True)
-            else:
-                self.stop_recording(auto_play=True)
-
-
-
-
-
+            return Path(filename)  # Default to current directory for non-macOS systems
 
     def play_sound(self, sound_file):
-        player = AudioPlayer(self.resource_path(sound_file))
-        player.play(block=True) 
+        """Play a sound file using ResourceUtils."""
+        ResourceUtils.play_sound(sound_file)
 
     def resource_path(self, relative_path):
-        """Get the absolute path to the resource, works for both development and PyInstaller environments."""
-
-        try:
-            # When running in a PyInstaller bundle, use the '_MEIPASS' directory
-            base_path = sys._MEIPASS
-        except AttributeError:
-            # When running normally (not bundled), use the directory where the main script is located
-            base_path = os.path.dirname(os.path.abspath(sys.argv[0]))
-
-        # Resolve the absolute path
-        abs_path = os.path.join(base_path, relative_path)
-
-        # Debugging: Print the absolute path to check if it's correct
-        print(f"Resolved path for {relative_path}: {abs_path}")
-
-        return abs_path
-
-
-
+        """Get the resource path using ResourceUtils."""
+        return ResourceUtils.resource_path(relative_path)
 
     def initialize_gui(self):
 
@@ -449,27 +349,6 @@ class TextToMic(tk.Tk):
 
 
 
-    def show_hotkey_instructions(self):
-        instruction_window = tk.Toplevel(self)
-        instruction_window.title("Hotkey Instructions")
-        instruction_window.geometry("400x300")  # Width x Height
-
-        instructions = """How to use Hotkeys
-ctrl+shift+0
-This starts a recording, then converts to text and plays when you press this hotkey again.
-
-ctrl+shift+9
-If you are recording, you can press this hotkey to stop recording without playing
-
-ctrl+shift+8
-This replays the last audio clip played
-
-        """
-        tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=380).pack(padx=10, pady=10)
-        
-        # Add a button to close the window
-        ttk.Button(instruction_window, text="Close", command=instruction_window.destroy).pack(pady=(10, 0))
-
     def show_instructions(self):
         instruction_window = tk.Toplevel(self)
         instruction_window.title("How to Use")
@@ -651,8 +530,7 @@ Please also make sure you read the Terms of use and licence statement before usi
     
     def get_audio_file_path(self, filename):
         if platform.system() == 'Darwin':  # Check if the OS is macOS
-            mac_path = self.get_app_support_path_mac()
-            #return self.get_app_support_path_mac() / filename
+            mac_path = APIKeyManager.get_app_support_path_mac()
             return f"{mac_path}/{filename}"
         else:
             return Path(filename)  # Default to current directory for non-macOS systems
@@ -842,195 +720,6 @@ Please also make sure you read the Terms of use and licence statement before usi
             p.terminate()
 
             
-    def change_api_key(self):
-        new_key = simpledialog.askstring("API Key", "Enter new OpenAI API Key:", parent=self)
-        if new_key:
-            self.save_api_key(new_key)
-            self.api_key = new_key
-            self.client = OpenAI(api_key=self.api_key)
-            messagebox.showinfo("API Key Updated", "The OpenAI API Key has been updated successfully.")
-
-
-    def get_device_info(self, device_index):
-        p = pyaudio.PyAudio()
-        try:
-            device_info = p.get_device_info_by_index(device_index)
-            return device_info
-        finally:
-            p.terminate()
-    
-    def toggle_recording(self, auto_play=False):
-        if not self.recording:
-            self.start_recording()
-        else:
-            self.stop_recording(auto_play)
-
-    def stop_recording_btn_change(self, btn_text):
-        self.record_button.config(text=btn_text)
-
-
-    def start_recording(self, play_confirm_sound=False):
-
-        input_device_index = self.input_device_index.get()  # Assuming input_device_index is a StringVar
-        input_device_id = self.available_input_devices.get(input_device_index)
-
-        if input_device_id is None:
-            if play_confirm_sound:
-                self.play_sound('assets/please-select-input.wav')
-            else:
-                messagebox.showerror("Error", "Selected audio device is not available.")
-            return
-
-        device_info = self.get_device_info(input_device_id)
-        sample_rate = int(device_info['defaultSampleRate'])
-
-        print(f"Device info: {device_info}")
-
-        if sample_rate is None:
-            sample_rate = 44100
-
-        #Record to GUI selected device ID
-        #device_id = None if self.input_device_index.get() == "Default" else input_devices[self.input_device_index.get()]
-
-        if input_device_id is None:
-            messagebox.showerror("Error", "Selected audio device is not available.")
-            return
-        
-        try:
-            self.recording = True
-            self.record_button.config(text="Stop and Insert", style='Recording.TButton')
-            self.submit_button.config(text="Stop and Play", style='Recording.TButton')
-
-            self.frames = []
-
-            self.p = pyaudio.PyAudio()
-            self.stream = self.p.open(format=pyaudio.paInt16, channels=1, rate=sample_rate, input=True, frames_per_buffer=1024, input_device_index=input_device_id)
-
-            if play_confirm_sound:
-                self.play_sound('assets/pop.wav')
-
-            def record():
-                while self.recording:
-                    data = self.stream.read(1024, exception_on_overflow=False)
-                    self.frames.append(data)
-
-            self.record_thread = threading.Thread(target=record)
-            self.record_thread.start()
-
-        except Exception as e:
-            messagebox.showerror("Recording Error", f"Failed to record audio: {str(e)}")
-            self.stop_recording(True)
-
-    def stop_recording(self, cancel_save=False, auto_play=False):
-        self.recording = False
-        if self.record_thread:
-            self.record_thread.join()
-
-        if self.stream:
-            self.stream.stop_stream()
-            self.stream.close()
-
-        if self.p:
-            self.p.terminate()
-
-        if cancel_save==False:
-            self.save_recording(auto_play=auto_play)
-        
-        self.record_button.config(text="Record Mic", style='TButton')  # Revert to default style
-        self.submit_button.config(text="Play", style='Green.TButton')  # Revert to default style
-
-
-    def save_recording(self, auto_play = False):
-        file_path = "output.wav"
-        wf = wave.open(file_path, 'wb')
-        wf.setnchannels(1)
-        wf.setsampwidth(self.p.get_sample_size(pyaudio.paInt16))
-        wf.setframerate(44100)
-        wf.writeframes(b''.join(self.frames))
-        wf.close()
-        print("Recording saved.")
-
-        self.after(0, self.transcribe_audio, file_path, auto_play)
-    
-
-
-
-    def transcribe_audio(self, file_path, auto_play = False):
-        try:
-            with open(str(file_path), "rb") as audio_file:
-                transcription = self.client.audio.transcriptions.create(
-                    file=audio_file,
-                    model="whisper-1",
-                    response_format="verbose_json"
-                )
-
-            settings = self.load_settings()
-
-            if settings["chat_gpt_completion"] and settings["auto_apply_ai_to_recording"]:
-                auto_apply_ai = settings["auto_apply_ai_to_recording"]
-            else:
-                auto_apply_ai = False
-
-            print(f"auto_apply_ai: {auto_apply_ai}")
-
-            if auto_apply_ai:
-                print("applying ai")
-                play_text = self.apply_ai(transcription.text)
-            else:
-                print("outputting without ai")
-                #This prevents issues with trying to upload TK after thread operations
-                #whcih can cause crashes with no error displayed
-                self.text_input.delete("1.0", tk.END)  # Clear existing text
-                self.text_input.insert("1.0", transcription.text)  # Insert new text
-                play_text = transcription.text
-
-            if auto_play:
-                #self.submit_text(play_text = playtext)#
-                print(f"Triggering auto play with: {play_text} ")
-                self.submit_text_helper(play_text = play_text)
-                # TODO: PLAY THE TEXT IMMEDIATELY
-            
-            print("Transcription Complete: The audio has been transcribed and the text has been placed in the input area.")
-            #messagebox.showinfo("Transcription Complete", "The audio has been transcribed and the text has been placed in the input area.")
-        
-        except Exception as e:
-            print(f"Transcription error: An error occurred during transcription: {str(e)}")
-    
-
-    def load_settings(self):
-        settings_file = self.get_settings_file_path("settings.json")
-        try:
-            with open(settings_file, "r") as f:
-                settings = json.load(f)
-        except FileNotFoundError:
-            # Default settings
-            settings = {
-                "chat_gpt_completion": False,
-                "model": self.default_model,
-                "prompt": "",
-                "auto_apply_ai_to_recording": False,
-                "hotkeys": {
-                    "record_start_stop": ["ctrl", "shift", "0"],
-                    "stop_recording": ["ctrl", "shift", "9"],
-                    "play_last_audio": ["ctrl", "shift", "8"]
-                }
-            }
-            self.save_settings_to_JSON(settings)
-        return settings
-
-    def save_settings_to_JSON(self, settings):
-        settings_file = self.get_settings_file_path("settings.json")
-        
-        with open(settings_file, "w") as f:
-            json.dump(settings, f)
-
-    def get_settings_file_path(self, filename):
-        if platform.system() == 'Darwin':  # Check if the OS is macOS
-            mac_path = self.get_app_support_path_mac()
-            return f"{mac_path}/{filename}"
-        else:
-            return filename  # Default to current directory for non-macOS systems
-        
     def chat_gpt_settings(self):
         settings = self.load_settings()
         settings_window = tk.Toplevel(self)
@@ -1350,5 +1039,172 @@ Please also make sure you read the Terms of use and licence statement before usi
                 break
         self.save_presets()
         self.refresh_presets_display()
+
+    def get_device_info(self, device_index):
+        p = pyaudio.PyAudio()
+        try:
+            device_info = p.get_device_info_by_index(device_index)
+            return device_info
+        finally:
+            p.terminate()
+    
+    def toggle_recording(self, auto_play=False):
+        if not self.recording:
+            self.start_recording()
+        else:
+            self.stop_recording(auto_play)
+
+    def stop_recording_btn_change(self, btn_text):
+        self.record_button.config(text=btn_text)
+
+    def start_recording(self, play_confirm_sound=False):
+        input_device_index = self.input_device_index.get()  # Assuming input_device_index is a StringVar
+        input_device_id = self.available_input_devices.get(input_device_index)
+
+        if input_device_id is None:
+            if play_confirm_sound:
+                self.play_sound('assets/please-select-input.wav')
+            else:
+                messagebox.showerror("Error", "Selected audio device is not available.")
+            return
+
+        device_info = self.get_device_info(input_device_id)
+        sample_rate = int(device_info['defaultSampleRate'])
+
+        print(f"Device info: {device_info}")
+
+        if sample_rate is None:
+            sample_rate = 44100
+
+        if input_device_id is None:
+            messagebox.showerror("Error", "Selected audio device is not available.")
+            return
+        
+        try:
+            self.recording = True
+            self.record_button.config(text="Stop and Insert", style='Recording.TButton')
+            self.submit_button.config(text="Stop and Play", style='Recording.TButton')
+
+            self.frames = []
+
+            self.p = pyaudio.PyAudio()
+            self.stream = self.p.open(format=pyaudio.paInt16, channels=1, rate=sample_rate, input=True, frames_per_buffer=1024, input_device_index=input_device_id)
+
+            if play_confirm_sound:
+                self.play_sound('assets/pop.wav')
+
+            def record():
+                while self.recording:
+                    data = self.stream.read(1024, exception_on_overflow=False)
+                    self.frames.append(data)
+
+            self.record_thread = threading.Thread(target=record)
+            self.record_thread.start()
+
+        except Exception as e:
+            messagebox.showerror("Recording Error", f"Failed to record audio: {str(e)}")
+            self.stop_recording(True)
+
+    def stop_recording(self, cancel_save=False, auto_play=False):
+        self.recording = False
+        if hasattr(self, 'record_thread') and self.record_thread:
+            self.record_thread.join()
+
+        if hasattr(self, 'stream') and self.stream:
+            self.stream.stop_stream()
+            self.stream.close()
+
+        if hasattr(self, 'p') and self.p:
+            self.p.terminate()
+
+        if cancel_save==False:
+            self.save_recording(auto_play=auto_play)
+        
+        self.record_button.config(text="Record Mic", style='TButton')  # Revert to default style
+        self.submit_button.config(text="Play", style='Green.TButton')  # Revert to default style
+
+    def save_recording(self, auto_play = False):
+        file_path = "output.wav"
+        wf = wave.open(file_path, 'wb')
+        wf.setnchannels(1)
+        wf.setsampwidth(self.p.get_sample_size(pyaudio.paInt16))
+        wf.setframerate(44100)
+        wf.writeframes(b''.join(self.frames))
+        wf.close()
+        print("Recording saved.")
+
+        self.after(0, self.transcribe_audio, file_path, auto_play)
+
+    def transcribe_audio(self, file_path, auto_play = False):
+        try:
+            with open(str(file_path), "rb") as audio_file:
+                transcription = self.client.audio.transcriptions.create(
+                    file=audio_file,
+                    model="whisper-1",
+                    response_format="verbose_json"
+                )
+
+            settings = self.load_settings()
+
+            if settings["chat_gpt_completion"] and settings["auto_apply_ai_to_recording"]:
+                auto_apply_ai = settings["auto_apply_ai_to_recording"]
+            else:
+                auto_apply_ai = False
+
+            print(f"auto_apply_ai: {auto_apply_ai}")
+
+            if auto_apply_ai:
+                print("applying ai")
+                play_text = self.apply_ai(transcription.text)
+            else:
+                print("outputting without ai")
+                #This prevents issues with trying to upload TK after thread operations
+                #whcih can cause crashes with no error displayed
+                self.text_input.delete("1.0", tk.END)  # Clear existing text
+                self.text_input.insert("1.0", transcription.text)  # Insert new text
+                play_text = transcription.text
+
+            if auto_play:
+                print(f"Triggering auto play with: {play_text} ")
+                self.submit_text_helper(play_text = play_text)
+            
+            print("Transcription Complete: The audio has been transcribed and the text has been placed in the input area.")
+        
+        except Exception as e:
+            print(f"Transcription error: An error occurred during transcription: {str(e)}")
+
+    def load_settings(self):
+        settings_file = self.get_settings_file_path("settings.json")
+        try:
+            with open(settings_file, "r") as f:
+                settings = json.load(f)
+        except FileNotFoundError:
+            # Default settings
+            settings = {
+                "chat_gpt_completion": False,
+                "model": self.default_model,
+                "prompt": "",
+                "auto_apply_ai_to_recording": False,
+                "hotkeys": {
+                    "record_start_stop": ["ctrl", "shift", "0"],
+                    "stop_recording": ["ctrl", "shift", "9"],
+                    "play_last_audio": ["ctrl", "shift", "8"]
+                }
+            }
+            self.save_settings_to_JSON(settings)
+        return settings
+
+    def save_settings_to_JSON(self, settings):
+        settings_file = self.get_settings_file_path("settings.json")
+        
+        with open(settings_file, "w") as f:
+            json.dump(settings, f)
+
+    def get_settings_file_path(self, filename):
+        if platform.system() == 'Darwin':  # Check if the OS is macOS
+            mac_path = APIKeyManager.get_app_support_path_mac()
+            return f"{mac_path}/{filename}"
+        else:
+            return filename  # Default to current directory for non-macOS systems
 
 
