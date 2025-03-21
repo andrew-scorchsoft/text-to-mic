@@ -40,6 +40,12 @@ class HotkeyManager:
                 lambda: self.hotkey_play_last_audio_trigger()
             ))
             
+            # Add cancel operation hotkey
+            self.hotkeys.append(keyboard.add_hotkey(
+                self.format_shortcut(hotkey_settings["cancel_operation"]), 
+                lambda: self.hotkey_cancel_operation_trigger()
+            ))
+            
             return True
         except Exception as e:
             print(f"Error registering hotkeys: {e}")
@@ -180,6 +186,48 @@ class HotkeyManager:
                 self.app.start_recording(play_confirm_sound=True)
             else:
                 self.app.stop_recording(auto_play=True)
+    
+    def hotkey_cancel_operation_trigger(self):
+        """Cancel current operation (recording or playback)."""
+        print("Cancel operation hotkey triggered")
+        
+        # Play feedback sound first
+        self.app.play_sound('assets/pop.wav')
+        
+        # For recording cancellation
+        if self.app.recording:
+            print("Canceling recording operation")
+            # Schedule the stop_recording call on the main thread to avoid threading issues
+            self.app.after(100, lambda: self._safe_cancel_recording())
+            return
+            
+        # For playback cancellation
+        if hasattr(self.app, 'is_playing') and self.app.is_playing:
+            print("Canceling playback operation")
+            # Schedule the stop_playback call on the main thread to avoid threading issues
+            self.app.after(100, lambda: self._safe_cancel_playback())
+            return
+            
+        print("No active operation to cancel")
+    
+    def _safe_cancel_recording(self):
+        """Safely cancel recording on the main thread."""
+        try:
+            if self.app.recording:
+                self.app.stop_recording(cancel_save=True)
+                self.app.recording = False
+                print("Recording cancelled successfully")
+        except Exception as e:
+            print(f"Error canceling recording: {e}")
+    
+    def _safe_cancel_playback(self):
+        """Safely cancel playback on the main thread."""
+        try:
+            if hasattr(self.app, 'stop_playback') and callable(self.app.stop_playback):
+                self.app.stop_playback()
+                print("Playback cancelled successfully")
+        except Exception as e:
+            print(f"Error canceling playback: {e}")
     
     @staticmethod
     def hotkey_settings_dialog(app):
@@ -712,7 +760,8 @@ class HotkeyManager:
                 default_shortcuts = {
                     "record_start_stop": ["ctrl", "shift", "0"],
                     "stop_recording": ["ctrl", "shift", "9"],
-                    "play_last_audio": ["ctrl", "shift", "8"]
+                    "play_last_audio": ["ctrl", "shift", "8"],
+                    "cancel_operation": ["ctrl", "shift", "1"]
                 }
                 
                 # Update settings
@@ -763,6 +812,7 @@ class HotkeyManager:
         record_shortcut = hotkey_manager.format_shortcut(settings["hotkeys"]["record_start_stop"])
         play_shortcut = hotkey_manager.format_shortcut(settings["hotkeys"]["play_last_audio"])
         stop_shortcut = hotkey_manager.format_shortcut(settings["hotkeys"]["stop_recording"])
+        cancel_shortcut = hotkey_manager.format_shortcut(settings["hotkeys"]["cancel_operation"])
 
         instructions = f"""Available Hotkeys:
 
@@ -774,6 +824,9 @@ class HotkeyManager:
 
 3. {stop_shortcut} - Stop Recording
    Immediately stops any active recording.
+
+4. {cancel_shortcut} - Cancel Operation
+   Cancels the current operation (recording or playback) without saving or processing.
 
 These hotkeys work globally across your system, even when the app is minimized.
 You can customize these hotkeys in Settings → Hotkey Settings.

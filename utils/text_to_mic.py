@@ -7,6 +7,7 @@ import wave
 import webbrowser
 import json
 import sys
+import time
 
 from pystray import Icon as icon, MenuItem as item, Menu as menu
 from PIL import Image, ImageDraw, ImageTk
@@ -684,14 +685,30 @@ Please also make sure you read the Terms of use and licence statement before usi
         return resampled_file_path
 
     def play_audio_multiplexed(self, file_paths, device_indices):
-
-        p = pyaudio.PyAudio()
-        streams = []
+        """Play audio files to multiple devices with better cancellation handling."""
+        # Stop any existing playback first
+        if hasattr(self, 'is_playing') and self.is_playing:
+            self.stop_playback()
+            # Add a small delay to ensure previous resources are cleaned up
+            time.sleep(0.2)
+        
+        # Make p and streams accessible for stop_playback
+        try:
+            self.current_playback_p = pyaudio.PyAudio()
+            self.current_playback_streams = []
+            self.is_playing = True
+        except Exception as e:
+            print(f"Error initializing PyAudio: {e}")
+            messagebox.showerror("Audio Error", f"Failed to initialize audio system: {e}")
+            return
         
         try:
             # Open all files and start all streams
             for file_path, device_index in zip(file_paths, device_indices):
-
+                if not self.is_playing:
+                    print("Playback canceled during initialization")
+                    break
+                    
                 try:
                     # Ensure the file_path is a string when opening the file
                     wf = wave.open(str(file_path), 'rb')
@@ -703,7 +720,6 @@ Please also make sure you read the Terms of use and licence statement before usi
                     continue
 
                 try:
-                    
                     # Ensure output audio sample rate matches that of the selected device
                     device_info = self.get_device_info(device_index)
                     sample_rate = int(device_info['defaultSampleRate'])  # Fetch default sample rate from device info
@@ -718,46 +734,139 @@ Please also make sure you read the Terms of use and licence statement before usi
                     # Make the audio file sample rate match the device output sample rate
                     # if there is a mismatch (prevents playback speed issues or crashes)
                     if sample_rate != wf_frame_rate:
-                        #if mismatch, make a new resampled version that matches the output device
+                        # If mismatch, make a new resampled version that matches the output device
                         resampled_file_path = self.resample_audio(str(file_path), sample_rate)
-                        #update the playback file to the new resampled file
+                        # Update the playback file to the new resampled file
                         file_path = resampled_file_path
-                        #re-open the new file for processing
+                        # Re-open the new file for processing
+                        wf.close()  # Close the original file first
                         wf = wave.open(str(file_path), 'rb')
                   
-                    #Create a stream from our file
-                    stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
-                                    channels=wf.getnchannels(),
-                                    rate=sample_rate,
-                                    output=True,
-                                    output_device_index=int(device_index))
+                    # Create a stream from our file
+                    stream = self.current_playback_p.open(
+                        format=self.current_playback_p.get_format_from_width(wf.getsampwidth()),
+                        channels=wf.getnchannels(),
+                        rate=sample_rate,
+                        output=True,
+                        output_device_index=int(device_index)
+                    )
                     
                 except Exception as e:
                     messagebox.showerror("Stream Creation Error", f"Failed to create audio stream for device index {device_index}: {str(e)}")
                     wf.close()
                     continue
 
-                streams.append((stream, wf))
+                self.current_playback_streams.append((stream, wf))
 
-            # Play interleaved
-            active_streams = len(streams)
-            while active_streams > 0:
-                for stream, wf in streams:
+            # Play interleaved using a more robust approach
+            self._play_audio_streams()
+            
+        except Exception as e:
+            print(f"Playback setup error: {e}")
+            messagebox.showerror("Playback Error", f"Error setting up playback: {e}")
+            self.stop_playback()
+    
+    def _play_audio_streams(self):
+        """Handle the actual audio playback in chunks, with better error handling."""
+        if not hasattr(self, 'current_playback_streams') or not self.current_playback_streams:
+            print("No streams to play")
+            self.stop_playback()
+            return
+            
+        try:
+            finished_streams = []
+            
+            # Process one chunk from each stream
+            for stream, wf in self.current_playback_streams:
+                if not self.is_playing:
+                    print("Playback canceled during streaming")
+                    break
+                    
+                try:
                     data = wf.readframes(1024)
                     if data:
                         stream.write(data)
                     else:
-                        stream.stop_stream()
-                        stream.close()
-                        wf.close()
-                        streams.remove((stream, wf))
-                        active_streams -= 1
-
+                        # Mark this stream as finished
+                        finished_streams.append((stream, wf))
+                except Exception as e:
+                    print(f"Error during stream playback: {e}")
+                    # Add to finished streams if there's an error
+                    finished_streams.append((stream, wf))
+            
+            # Remove finished streams
+            for stream_pair in finished_streams:
+                try:
+                    stream, wf = stream_pair
+                    stream.stop_stream()
+                    stream.close()
+                    wf.close()
+                    self.current_playback_streams.remove(stream_pair)
+                except Exception as e:
+                    print(f"Error cleaning up finished stream: {e}")
+            
+            # If we still have streams and playback is active, schedule the next chunk
+            if self.current_playback_streams and self.is_playing:
+                self.after(1, self._play_audio_streams)  # Schedule next chunk processing
+            else:
+                # All done or canceled, clean up
+                self.stop_playback()
+                
         except Exception as e:
-            messagebox.showerror("Playback Error", f"Error during multiplexed playback: {e}")
-        finally:
-            p.terminate()
-
+            print(f"Error in _play_audio_streams: {e}")
+            self.stop_playback()
+    
+    def stop_playback(self):
+        """Stop any active audio playback."""
+        print("Attempting to stop playback")
+        
+        # Set flag first to exit any playback loops
+        self.is_playing = False
+        
+        try:
+            # Close any active streams
+            if hasattr(self, 'current_playback_streams'):
+                # Make a copy of the list to safely iterate while potentially modifying
+                streams_to_close = list(self.current_playback_streams)
+                
+                for stream, wf in streams_to_close:
+                    try:
+                        # Check if stream exists and is active before attempting to stop it
+                        if stream and stream.is_active():
+                            stream.stop_stream()
+                        if stream:
+                            stream.close()
+                        if wf:
+                            wf.close()
+                    except Exception as e:
+                        print(f"Error closing stream: {e}")
+                
+                # Clear the list after processing all streams
+                self.current_playback_streams = []
+            
+            # Terminate PyAudio instance - do this last and carefully
+            if hasattr(self, 'current_playback_p') and self.current_playback_p:
+                try:
+                    # Add a small delay to ensure streams are properly closed before terminating
+                    self.after(100, self._complete_playback_termination)
+                except Exception as e:
+                    print(f"Error scheduling PyAudio termination: {e}")
+        
+        except Exception as e:
+            print(f"Error in stop_playback: {e}")
+            # Don't reraise - we want to prevent crashes
+    
+    def _complete_playback_termination(self):
+        """Complete the termination of PyAudio in a separate step to avoid crashes."""
+        try:
+            if hasattr(self, 'current_playback_p') and self.current_playback_p:
+                self.current_playback_p.terminate()
+                self.current_playback_p = None
+                print("PyAudio terminated successfully")
+        except Exception as e:
+            print(f"Error terminating PyAudio: {e}")
+            # Still clear the reference even if termination fails
+            self.current_playback_p = None
 
     def play_last_audio(self):
 
@@ -1045,6 +1154,12 @@ Please also make sure you read the Terms of use and licence statement before usi
         try:
             with open(settings_file, "r") as f:
                 settings = json.load(f)
+                
+                # Check if the new cancel_operation hotkey exists
+                if "hotkeys" in settings and "cancel_operation" not in settings["hotkeys"]:
+                    settings["hotkeys"]["cancel_operation"] = ["ctrl", "shift", "1"]
+                    self.save_settings_to_JSON(settings)
+                
         except FileNotFoundError:
             # Default settings
             settings = {
@@ -1057,7 +1172,8 @@ Please also make sure you read the Terms of use and licence statement before usi
                 "hotkeys": {
                     "record_start_stop": ["ctrl", "shift", "0"],
                     "stop_recording": ["ctrl", "shift", "9"],
-                    "play_last_audio": ["ctrl", "shift", "8"]
+                    "play_last_audio": ["ctrl", "shift", "8"],
+                    "cancel_operation": ["ctrl", "shift", "1"]
                 }
             }
             self.save_settings_to_JSON(settings)
