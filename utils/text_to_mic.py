@@ -275,9 +275,8 @@ class TextToMic(tk.Tk):
 
         self.create_presets_section()
 
-
         #Credits
-        info_label = tk.Label(main_frame, text="Created by Scorchsoft.com App Development", fg="blue", cursor="hand2")
+        info_label = tk.Label(main_frame, text="Enjoying this free tool? Thank us by referring a business friend to Scorchsoft.com", fg="blue", cursor="hand2")
         info_label.grid(column=0, row=10, columnspan=2, pady=(0, 0))
         info_label.bind("<Button-1>", lambda e: self.open_scorchsoft())
 
@@ -909,58 +908,77 @@ Please also make sure you read the Terms of use and licence statement before usi
         # Get our custom style colors
         bg_color = self.style.lookup('TFrame', 'background')
         text_color = self.style.lookup('TLabel', 'foreground')
-        accent_color = "#e0e0e4"  # Slightly darker grey for accents
-
+        
+        # Use a light gray with subtle blue tint for preset buttons - distinct from white but still clean
+        preset_bg_color = "#f0f4f8"  # Light blue-gray that contrasts with the main background
+        
         # Configure columns to fill available space
         for col in range(3):
             self.presets_scrollable_frame.columnconfigure(col, weight=1)
 
         # Populate filtered presets in grid layout
         for i, phrase in enumerate(display_phrases):
-            # Create a frame with soft border and clean look
+            # Create a frame with no border for cleaner look
             frame = ttk.Frame(self.presets_scrollable_frame, width=preset_width, height=preset_height)
             frame.grid(row=i // 4, column=i % 4, padx=3, pady=3, sticky="nsew")
             frame.grid_propagate(False)
             
-            # Create a subtle border around each preset with more modern look
-            inner_frame = ttk.Frame(frame, style='Card.TFrame')
-            inner_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+            # Create a unique style name for each card to avoid affecting other widgets
+            card_style_name = f'Card{i}.TFrame'
+            self.style.configure(card_style_name, 
+                                background=preset_bg_color,
+                                borderwidth=0,
+                                relief="flat")
             
-            # Style for card-like appearance
-            self.style.configure('Card.TFrame', 
-                                 background=bg_color,
-                                 borderwidth=1,
-                                 relief="solid")
+            # Create inner frame with distinct background and no border
+            inner_frame = ttk.Frame(frame, style=card_style_name)
+            inner_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
 
             self.presets_scrollable_frame.grid_columnconfigure(i % 4, weight=1)  # Make columns expandable
             self.presets_scrollable_frame.grid_rowconfigure(i // 4, weight=1)    # Make rows expandable
 
+            # Create a unique style for each label
+            label_style_name = f'CardLabel{i}.TLabel'
+            self.style.configure(label_style_name, 
+                                background=preset_bg_color,
+                                foreground=text_color)
+            
             # Text label with truncation for long text
             wrapped_text = self.wrap_text(phrase["text"], max_lines=3, max_chars_per_line=20)
-            label = ttk.Label(inner_frame, text=wrapped_text, anchor="center", justify="center", width=20)
+            label = ttk.Label(inner_frame, text=wrapped_text, anchor="center", justify="center", 
+                            width=20, style=label_style_name)
             label.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
             label.bind("<Button-1>", lambda e, t=phrase["text"]: self.insert_text(t))
             label.bind("<Double-Button-1>", lambda e, t=phrase["text"]: self.play_preset(t))
 
+            # Create a unique style for each bottom frame
+            bottom_frame_style = f'BottomFrame{i}.TFrame'
+            self.style.configure(bottom_frame_style, background=preset_bg_color)
+            
             # Bottom frame for icons
-            bottom_frame = ttk.Frame(inner_frame)
+            bottom_frame = ttk.Frame(inner_frame, style=bottom_frame_style)
             bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=2)
 
-            # Style for flat buttons with our modern look
-            self.style.configure("Flat.TButton",
+            # Create a unique style for each button
+            button_style_name = f'FlatButton{i}.TButton'
+            self.style.configure(button_style_name,
                      borderwidth=0,
                      highlightthickness=0,
                      font=("Arial", 12),
                      anchor="center",
-                     background=bg_color)
+                     background=preset_bg_color)
 
             # Favourite button
             fav_icon = "❤️" if phrase["isFavourite"] else "♡"
-            fav_btn = ttk.Button(bottom_frame, text=fav_icon, command=lambda p=phrase: self.toggle_favourite(p), width=2, style="Flat.TButton")
+            fav_btn = ttk.Button(bottom_frame, text=fav_icon, 
+                              command=lambda p=phrase: self.toggle_favourite(p), 
+                              width=2, style=button_style_name)
             fav_btn.pack(side=tk.RIGHT, padx=2)
 
             # Delete button
-            del_btn = ttk.Button(bottom_frame, text="🗑️", command=lambda t=phrase["text"]: self.delete_preset(self.current_category, t), width=2, style="Flat.TButton")
+            del_btn = ttk.Button(bottom_frame, text="🗑️", 
+                             command=lambda t=phrase["text"]: self.delete_preset(self.current_category, t), 
+                             width=2, style=button_style_name)
             del_btn.pack(side=tk.RIGHT, padx=2)
 
         # Update scroll region after populating all items
