@@ -21,8 +21,29 @@ class TonePresetsManager:
         # Add a variable to track the currently selected tone
         self.current_selected_tone = None
         
+        # Set style for a cleaner look
+        self.setup_styles()
+        
         self.create_dialog()
         self.parent.after(100, self.update_content)
+
+    def setup_styles(self):
+        """Configure ttk styles for a clean, modern appearance"""
+        style = ttk.Style()
+        
+        # Clean frame style without the yellow tint
+        style.configure("TLabelframe", borderwidth=1, relief="solid", background="#ffffff")
+        style.configure("TLabelframe.Label", foreground="#333333", background="#ffffff", font=("Arial", 10))
+        
+        # Clean button style
+        style.configure("TButton", foreground="#333333", background="#f0f0f0", font=("Arial", 10))
+        style.map("TButton", 
+                 background=[("active", "#e0e0e0"), ("pressed", "#d0d0d0")])
+        
+        # Label style
+        style.configure("TLabel", foreground="#333333", background="#ffffff", font=("Arial", 10))
+        
+        # Listbox and Text widget styling will be applied directly to those widgets
 
     def center_dialog(self):
         # Get the parent window position and dimensions
@@ -63,7 +84,10 @@ class TonePresetsManager:
         select_frame.pack(fill=tk.BOTH, expand=True)
 
         # Listbox for tones with scrollbar
-        self.tone_list = tk.Listbox(select_frame, height=8, selectmode=tk.BROWSE)
+        self.tone_list = tk.Listbox(select_frame, height=8, selectmode=tk.BROWSE, 
+                                    bg="#ffffff", fg="#333333", 
+                                    selectbackground="#0078d7", selectforeground="#ffffff",
+                                    font=("Arial", 10))
         tone_scrollbar = ttk.Scrollbar(select_frame, orient=tk.VERTICAL, command=self.tone_list.yview)
         self.tone_list.config(yscrollcommand=tone_scrollbar.set)
         
@@ -118,7 +142,10 @@ class TonePresetsManager:
 
         # Create the text widget with word wrap and vertical scrollbar
         self.content_text = tk.Text(text_frame, wrap=tk.WORD,
-                                  yscrollcommand=v_scrollbar.set)
+                                  yscrollcommand=v_scrollbar.set,
+                                  bg="#ffffff", fg="#333333",
+                                  font=("Arial", 10),
+                                  relief="solid", borderwidth=1)
         self.content_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Configure the scrollbar
@@ -198,6 +225,9 @@ class TonePresetsManager:
         tone_dialog.transient(self.dialog)
         tone_dialog.grab_set()
         
+        # Set background color for a cleaner look
+        tone_dialog.configure(background="#ffffff")
+        
         # Center the new tone dialog
         dialog_width = 600
         dialog_height = 400
@@ -226,7 +256,10 @@ class TonePresetsManager:
 
         # Create the text widget with word wrap and vertical scrollbar
         new_tone_text = tk.Text(text_frame, wrap=tk.WORD, height=15,
-                                yscrollcommand=v_scrollbar.set)
+                                yscrollcommand=v_scrollbar.set,
+                                bg="#ffffff", fg="#333333",
+                                font=("Arial", 10),
+                                relief="solid", borderwidth=1)
         new_tone_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Configure the scrollbar
