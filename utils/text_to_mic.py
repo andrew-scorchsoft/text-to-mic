@@ -11,6 +11,7 @@ import sys
 from pystray import Icon as icon, MenuItem as item, Menu as menu
 from PIL import Image, ImageDraw
 from tkinter import ttk, messagebox, simpledialog, Menu, Frame, Canvas, Scrollbar
+import customtkinter as ctk
 from openai import OpenAI
 from dotenv import load_dotenv
 from pathlib import Path
@@ -203,6 +204,29 @@ class TextToMic(tk.Tk):
         bg_color = self.style.lookup('TFrame', 'background')
         text_color = self.style.lookup('TLabel', 'foreground')
 
+        # Define custom button styles for pill-shaped buttons
+        self.style.configure('Pill.TButton', 
+                             font=('Arial', 13, 'bold'),
+                             borderwidth=0,
+                             relief='flat',
+                             padding=(20, 8))
+                             
+        self.style.configure('RecordPill.TButton', 
+                             font=('Arial', 13, 'bold'),
+                             background='#d32f2f',
+                             foreground='white',
+                             borderwidth=0,
+                             relief='flat',
+                             padding=(20, 8))
+                             
+        self.style.configure('PlayPill.TButton', 
+                             font=('Arial', 13, 'bold'),
+                             background='#058705',
+                             foreground='white',
+                             borderwidth=0,
+                             relief='flat',
+                             padding=(20, 8))
+
         # Voice Selection
         self.voice_var = tk.StringVar()
         voices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
@@ -256,22 +280,49 @@ class TextToMic(tk.Tk):
         self.text_input.configure(bg=bg_color, fg=text_color, insertbackground=text_color)
         self.text_input.grid(column=0, row=6, columnspan=2, pady=(0, 20), sticky="nsew")  # Fill available width
 
+        # Create a frame for the buttons to allow for better styling
+        button_frame = ttk.Frame(main_frame)
+        button_frame.grid(column=0, row=7, columnspan=2, sticky="ew", pady=(0, 20))
+        button_frame.columnconfigure(0, weight=1)
+        button_frame.columnconfigure(1, weight=1)
 
-
-
-        
+        # Get keyboard shortcuts from settings
+        settings = self.load_settings()
+        record_shortcut = "+".join(filter(None, settings["hotkeys"]["record_start_stop"]))
+        play_shortcut = "+".join(filter(None, settings["hotkeys"]["play_last_audio"]))
 
         # Button configuration
-
         self.recording = False  # State to check if currently recording
-        self.record_button = ttk.Button(main_frame, text="Record Mic", command=self.toggle_recording)
-        self.record_button.grid(column=0, row=7, sticky=tk.W + tk.E, pady=(0, 20), padx=(0, 10))  # Left padding to separate buttons
-
-        self.submit_button = ttk.Button(main_frame, text="Play Audio", style="Green.TButton", command=self.submit_text )
-        self.submit_button.grid(column=1, row=7, sticky=tk.W + tk.E, pady=(0, 20), padx=(10, 0))  # Right padding to separate buttons
-
-
-
+        
+        # Create CTk buttons with proper rounded corners
+        button_height = 35
+        button_width = 250
+        
+        # Record button with CTkButton
+        self.record_button = ctk.CTkButton(
+            button_frame,
+            text=f"Record Mic ({record_shortcut})",
+            corner_radius=20,
+            height=button_height,
+            width=button_width,
+            fg_color="#d32f2f",
+            font=("Arial", 13, "bold"),
+            command=self.toggle_recording
+        )
+        self.record_button.grid(row=0, column=0, sticky="ew", padx=(0, 10))
+        
+        # Play button with CTkButton
+        self.submit_button = ctk.CTkButton(
+            button_frame,
+            text=f"Play Audio ({play_shortcut})",
+            corner_radius=20,
+            height=button_height,
+            width=button_width,
+            fg_color="#058705",
+            font=("Arial", 13, "bold"),
+            command=self.submit_text
+        )
+        self.submit_button.grid(row=0, column=1, sticky="ew", padx=(10, 0))
 
         self.create_presets_section()
 
@@ -1148,8 +1199,16 @@ Please also make sure you read the Terms of use and licence statement before usi
         
         try:
             self.recording = True
-            self.record_button.config(text="Stop and Insert", style='Recording.TButton')
-            self.submit_button.config(text="Stop and Play", style='Recording.TButton')
+            
+            # Get keyboard shortcuts from settings
+            settings = self.load_settings()
+            record_shortcut = "+".join(filter(None, settings["hotkeys"]["record_start_stop"]))
+            play_shortcut = "+".join(filter(None, settings["hotkeys"]["play_last_audio"]))
+            stop_shortcut = "+".join(filter(None, settings["hotkeys"]["stop_recording"]))
+            
+            # Update CTkButton for recording state, keeping shortcuts visible
+            self.record_button.configure(text=f"Stop and Insert ({record_shortcut})", fg_color="#d32f2f")
+            self.submit_button.configure(text=f"Stop and Play ({play_shortcut})", fg_color="#d32f2f")
 
             self.frames = []
 
@@ -1186,8 +1245,14 @@ Please also make sure you read the Terms of use and licence statement before usi
         if cancel_save==False:
             self.save_recording(auto_play=auto_play)
         
-        self.record_button.config(text="Record Mic", style='TButton')  # Revert to default style
-        self.submit_button.config(text="Play", style='Green.TButton')  # Revert to default style
+        # Get keyboard shortcuts from settings
+        settings = self.load_settings()
+        record_shortcut = "+".join(filter(None, settings["hotkeys"]["record_start_stop"]))
+        play_shortcut = "+".join(filter(None, settings["hotkeys"]["play_last_audio"]))
+        
+        # Reset button appearance
+        self.record_button.configure(text=f"Record Mic ({record_shortcut})", fg_color="#d32f2f")
+        self.submit_button.configure(text=f"Play Audio ({play_shortcut})", fg_color="#058705")
 
     def save_recording(self, auto_play = False):
         file_path = "output.wav"
