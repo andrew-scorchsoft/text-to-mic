@@ -34,8 +34,8 @@ class TextToMic(tk.Tk):
         super().__init__()
 
         self.title("Scorchsoft Text to Mic")
-        self.default_geometry = "590x790"
-        self.untoggled_geometry ="590x510"
+        self.default_geometry = "590x890"
+        self.untoggled_geometry ="590x610"
         self.geometry(self.default_geometry) 
 
         self.available_models = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo"]
@@ -117,7 +117,7 @@ class TextToMic(tk.Tk):
         instruction_window.title("App Version")
         instruction_window.geometry("300x150")  # Width x Height
 
-        instructions = """Version 1.2.0\n\n App by Scorchsoft.com"""
+        instructions = """Version 1.3.0\n\n App by Scorchsoft.com"""
         
         tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=280).pack(padx=10, pady=10)
         
@@ -233,70 +233,97 @@ class TextToMic(tk.Tk):
                              relief='flat',
                              padding=(20, 8))
 
-        # Voice Selection
-        self.voice_var = tk.StringVar()
+        # Create frames for better organization
+        voice_frame = ttk.Frame(main_frame)
+        voice_frame.grid(column=0, row=0, columnspan=2, sticky="ew")
+        voice_frame.columnconfigure(1, weight=1)  # Make the second column expandable
+
+        device_frame = ttk.Frame(main_frame)
+        device_frame.grid(column=0, row=1, columnspan=2, sticky="ew", pady=(10, 0))
+        device_frame.columnconfigure(1, weight=1)  # Make the second column expandable
+
+        # Set fixed width for dropdown menus
+        dropdown_width = 30
+
+        # Create a style for compact dropdowns
+        self.style.configure('Compact.TMenubutton', padding=(5, 2))
+
+        # Voice and Tone Settings
+        ttk.Label(voice_frame, text="Voice Settings", font=("Arial", 10, "bold")).grid(column=0, row=0, sticky=tk.W, pady=(0, 10), columnspan=2)
+
+        self.voice_var = tk.StringVar(value="fable")
         voices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
-        ttk.Label(main_frame, text="Voice").grid(column=0, row=0, sticky=tk.W, pady=(10, 10))  # Padding added
-        voice_menu = ttk.OptionMenu(main_frame, self.voice_var,'fable', *voices)
-        voice_menu.grid(column=1, row=0, sticky=tk.W)
+        ttk.Label(voice_frame, text="Voice:").grid(column=0, row=1, sticky=tk.W, pady=(0, 5))
+        voice_menu = ttk.OptionMenu(voice_frame, self.voice_var, self.voice_var.get(), *voices)
+        voice_menu.grid(column=1, row=1, sticky=tk.E, pady=(0, 5))
+        voice_menu.config(width=dropdown_width, style='Compact.TMenubutton')
 
-        # Tone Preset Selection
         self.tone_var = tk.StringVar(value=self.current_tone_name)
-        ttk.Label(main_frame, text="Tone Preset").grid(column=0, row=1, sticky=tk.W, pady=(5, 10))
         tone_options = ["None"] + list(self.tone_presets.keys())
-        self.tone_menu = ttk.OptionMenu(main_frame, self.tone_var, self.tone_var.get(), *tone_options, 
-                                      command=self.on_tone_change)
-        self.tone_menu.grid(column=1, row=1, sticky=tk.W)
+        ttk.Label(voice_frame, text="Tone Preset:").grid(column=0, row=2, sticky=tk.W, pady=(0, 5))
+        self.tone_menu = ttk.OptionMenu(voice_frame, self.tone_var, self.tone_var.get(), *tone_options, command=self.on_tone_change)
+        self.tone_menu.grid(column=1, row=2, sticky=tk.E, pady=(0, 5))
+        self.tone_menu.config(width=dropdown_width, style='Compact.TMenubutton')
 
-        # Microphone Selection Setup
-        ttk.Label(main_frame, text="Input Device (optional):").grid(column=0, row=2, sticky=tk.W, pady=(5, 10))  # Padding added
-        input_device_menu = ttk.OptionMenu(main_frame, self.input_device_index, "None", *self.available_input_devices.keys())
-        input_device_menu.grid(column=1, row=2, sticky=tk.W)
+        # Separator between Voice Settings and Device Settings
+        separator = ttk.Separator(main_frame, orient='horizontal')
+        separator.grid(column=0, row=2, columnspan=2, sticky="ew", pady=10)
 
-        # Select Primary audio device
-        ttk.Label(main_frame, text="Primary Playback Device:").grid(column=0, row=3, sticky=tk.W, pady=(10, 10))  # Padding added
-        primary_device_menu = ttk.OptionMenu(main_frame, self.device_index, *self.available_devices.keys())
-        primary_device_menu.grid(column=1, row=3, sticky=tk.W)
+        # Device Settings
+        ttk.Label(device_frame, text="Device Settings", font=("Arial", 10, "bold")).grid(column=0, row=0, sticky=tk.W, pady=(0, 10), columnspan=2)
 
-        # Select Secondary audio device
-        ttk.Label(main_frame, text="Secondary Playback Device (optional):").grid(column=0, row=4, sticky=tk.W, pady=(5, 10))  # Padding added
-        secondary_device_menu = ttk.OptionMenu(main_frame, self.device_index_2, "None", *self.available_devices.keys())
-        secondary_device_menu.grid(column=1, row=4, sticky=tk.W)
+        ttk.Label(device_frame, text="Input Device (optional):").grid(column=0, row=1, sticky=tk.W, pady=(0, 5))
+        input_device_menu = ttk.OptionMenu(device_frame, self.input_device_index, "None", *self.available_input_devices.keys())
+        input_device_menu.grid(column=1, row=1, sticky=tk.E, pady=(0, 5))
+        input_device_menu.config(width=dropdown_width, style='Compact.TMenubutton')
 
+        ttk.Label(device_frame, text="Primary Playback Device:").grid(column=0, row=2, sticky=tk.W, pady=(0, 5))
+        primary_device_menu = ttk.OptionMenu(device_frame, self.device_index, *self.available_devices.keys())
+        primary_device_menu.grid(column=1, row=2, sticky=tk.E, pady=(0, 5))
+        primary_device_menu.config(width=dropdown_width, style='Compact.TMenubutton')
 
-        spacer = ttk.Frame(main_frame, height=20)  # Adjust height as needed
-        spacer.grid(column=0, row=5, columnspan=2)  # Place spacer in the grid
+        ttk.Label(device_frame, text="Secondary Playback Device (optional):").grid(column=0, row=3, sticky=tk.W, pady=(0, 5))
+        secondary_device_menu = ttk.OptionMenu(device_frame, self.device_index_2, "None", *self.available_devices.keys())
+        secondary_device_menu.grid(column=1, row=3, sticky=tk.E, pady=(0, 5))
+        secondary_device_menu.config(width=dropdown_width, style='Compact.TMenubutton')
 
+        # Text to Read section with proper layout
+        text_read_frame = ttk.Frame(main_frame)
+        text_read_frame.grid(column=0, row=4, columnspan=2, sticky="ew", pady=(0, 10))
+        text_read_frame.columnconfigure(0, weight=1)  # Left side expands
+        text_read_frame.columnconfigure(1, weight=0)  # Right side fixed width
 
-        # Text to Read Label
-        ttk.Label(main_frame, text="Text to Read:").grid(column=0, row=6, sticky=tk.W, pady=(10, 0))
+        # Text to Read label
+        ttk.Label(text_read_frame, text="Text to Read:").grid(column=0, row=0, sticky=tk.W)
 
         # Create a frame to contain the dropdown and save button
-        save_frame = ttk.Frame(main_frame)
-        save_frame.grid(column=1, row=6, sticky=tk.E, padx=(5, 0), pady=(5, 0))  # Align to the top right
+        save_frame = ttk.Frame(text_read_frame)
+        save_frame.grid(column=1, row=0, sticky=tk.E)
 
         # Preset Category dropdown
         self.category_var = tk.StringVar(value="Select Category")
         categories = [cat["category"] for cat in self.presets]
         category_menu = ttk.OptionMenu(save_frame, self.category_var, *categories)
-        category_menu.grid(column=0, row=0, sticky=tk.E, padx=(0, 5))  # Adjust padding for alignment
+        category_menu.grid(column=0, row=0, sticky=tk.E, padx=(0, 5))
+        category_menu.config(style='Compact.TMenubutton')
 
-        # Save button, reduced size
-        save_button = ttk.Button(save_frame, text="Save", width=8, command=self.save_current_text_as_preset)
+        # Create a compact style for the Save button to match dropdown height
+        self.style.configure('Compact.TButton', padding=(2, 1))
 
-        save_button.grid(column=1, row=0, sticky=tk.E)  # Align to the right
-        
-        # Specify the text to read
+        # Save button with matching height
+        save_button = ttk.Button(save_frame, text="Save", width=8, style='Compact.TButton', command=self.save_current_text_as_preset)
+        save_button.grid(column=1, row=0, sticky=tk.E)
+
+        # Text input area with proper spacing
         self.text_input = tk.Text(main_frame, height=5, width=68)
-        # Apply our custom styling to the text input
-        bg_color = self.style.lookup('TFrame', 'background')
+        # Use white background for text input instead of the system background color
         text_color = self.style.lookup('TLabel', 'foreground')
-        self.text_input.configure(bg=bg_color, fg=text_color, insertbackground=text_color)
-        self.text_input.grid(column=0, row=7, columnspan=2, pady=(0, 20), sticky="nsew")  # Fill available width
+        self.text_input.configure(bg="white", fg=text_color, insertbackground=text_color)
+        self.text_input.grid(column=0, row=5, columnspan=2, pady=(0, 20), sticky="nsew")  # Proper spacing
 
         # Create a frame for the buttons to allow for better styling
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(column=0, row=8, columnspan=2, sticky="ew", pady=(0, 20))
+        button_frame.grid(column=0, row=6, columnspan=2, sticky="ew", pady=(0, 20))
         button_frame.columnconfigure(0, weight=1)
         button_frame.columnconfigure(1, weight=1)
 
@@ -341,21 +368,28 @@ class TextToMic(tk.Tk):
         self.create_presets_section()
 
         #Credits
-        info_label = tk.Label(main_frame, text="Enjoying this free tool? Thank us by referring a business friend to Scorchsoft.com", fg="blue", cursor="hand2")
-        info_label.grid(column=0, row=9, columnspan=2, pady=(0, 0))
-        info_label.bind("<Button-1>", lambda e: self.open_scorchsoft())
-        
-        desc_label = tk.Label(main_frame, text="We build Apps, AI agents, voice/speech apps, and autonomous tools that work with or without human interaction", wraplength=500)
-        desc_label.grid(column=0, row=10, columnspan=2, pady=(5, 0))
-
-
+        # Banner image that links to Scorchsoft
+        banner_path = self.resource_path("assets/ss-banner-550.png")
+        try:
+            banner_img = tk.PhotoImage(file=banner_path)
+            banner_label = tk.Label(main_frame, image=banner_img, cursor="hand2")
+            banner_label.image = banner_img  # Keep a reference to prevent garbage collection
+            banner_label.grid(column=0, row=7, columnspan=2, pady=(10, 10))
+            banner_label.bind("<Button-1>", lambda e: self.open_scorchsoft())
+        except Exception as e:
+            print(f"Error loading banner image: {e}")
+            # Fallback to text if image fails to load
+            info_label = tk.Label(main_frame, text="Visit Scorchsoft.com for custom app development", 
+                                 fg="blue", cursor="hand2")
+            info_label.grid(column=0, row=7, columnspan=2, pady=(10, 10))
+            info_label.bind("<Button-1>", lambda e: self.open_scorchsoft())
 
     def create_presets_section(self):
         # Accordion frame to show/hide presets section
         self.presets_frame = ttk.Frame(self)
         self.presets_button = ttk.Button(self, text="▶ Presets", command=self.toggle_presets)
-        self.presets_button.grid(column=0, row=8, columnspan=2, sticky=tk.W)
-        self.presets_frame.grid(column=0, row=9, columnspan=2, sticky=(tk.W, tk.E))
+        self.presets_button.grid(column=0, row=6, columnspan=2, sticky=tk.W)
+        self.presets_frame.grid(column=0, row=7, columnspan=2, sticky=(tk.W, tk.E))
 
         # Tabs for categories with scrolling arrows
         self.tab_frame = ttk.Frame(self.presets_frame)
