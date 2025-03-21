@@ -12,3 +12,5 @@ vs/
 .zip
 
 config/
+
+**/__pycache__/

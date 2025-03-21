@@ -36,8 +36,14 @@ class PresetsManager:
         self.chevron_left = self.get_icon("assets/icons/chevron-left-black.png", 16)
         self.chevron_right_small = self.get_icon("assets/icons/chevron-right-black.png", 16)
         
+        # Store the original row weights to restore when presets are collapsed
+        self.original_row_weights = {}
+        
         # Initialize the UI components
         self.create_presets_section()
+        
+        # Bind to window resize for responsive layout
+        self.parent.bind("<Configure>", self.on_window_resize)
         
     def create_presets_section(self):
         """Create the presets section UI with accordion behavior."""
@@ -59,7 +65,8 @@ class PresetsManager:
         )
         self.presets_button.pack(side=tk.LEFT, padx=0, pady=2)
         
-        self.presets_frame.grid(column=0, row=7, columnspan=2, sticky=(tk.W, tk.E))
+        # Make presets frame expandable
+        self.presets_frame.grid(column=0, row=7, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
 
         # Tabs for categories with scrolling arrows
         self.tab_frame = ttk.Frame(self.presets_frame)
@@ -110,10 +117,13 @@ class PresetsManager:
         )
         self.right_arrow.pack(side=tk.RIGHT, padx=1)
 
-        # Presets display area with a fixed height and vertical scrollbar
-        self.presets_canvas = Canvas(self.presets_frame, height=250, width=self.presets_frame.winfo_width(), 
-                                     bg=bg_color, highlightthickness=0)
-        self.presets_scrollbar = Scrollbar(self.presets_frame, orient="vertical", command=self.presets_canvas.yview)
+        # Presets display area - now using pack with fill=BOTH and expand=True for responsiveness
+        self.presets_container = ttk.Frame(self.presets_frame)
+        self.presets_container.pack(fill=tk.BOTH, expand=True)
+        
+        # Presets canvas that will expand with the window
+        self.presets_canvas = Canvas(self.presets_container, bg=bg_color, highlightthickness=0)
+        self.presets_scrollbar = Scrollbar(self.presets_container, orient="vertical", command=self.presets_canvas.yview)
         self.presets_canvas.configure(yscrollcommand=self.presets_scrollbar.set)
 
         # Frame inside the canvas to hold presets
@@ -121,7 +131,7 @@ class PresetsManager:
         self.presets_canvas.create_window((0, 0), window=self.presets_scrollable_frame, anchor="nw")
 
         # Pack the canvas and scrollbar
-        self.presets_canvas.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.presets_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.presets_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         # Configure the scroll region to update when the frame changes
@@ -136,6 +146,38 @@ class PresetsManager:
         self.toggle_presets()
         self.enable_mouse_wheel_scrolling()
         
+    def on_window_resize(self, event=None):
+        """Handler for window resize events to adjust the presets layout."""
+        # Only proceed if event is from the main window and presets are visible
+        if event and event.widget == self.parent and not self.presets_collapsed:
+            # Schedule a refresh after a short delay to prevent excessive updates during resize
+            if hasattr(self, 'resize_timer') and self.resize_timer:
+                self.parent.after_cancel(self.resize_timer)
+            self.resize_timer = self.parent.after(100, self.refresh_presets_display)
+        
+    def _adjust_row_weights(self):
+        """Adjust row weights to prioritize presets area expansion."""
+        # Store current weights if we haven't already
+        if not self.original_row_weights:
+            for i in range(7):  # Store weights for rows 0-6 (main content area)
+                self.original_row_weights[i] = self.parent.grid_rowconfigure(i, "weight")
+        
+        # Set all main content rows to have weight 0 (fixed height)
+        for i in range(7):
+            self.parent.grid_rowconfigure(i, weight=0)
+            
+        # Set presets row to have all the weight (expandable)
+        self.parent.grid_rowconfigure(7, weight=1)
+            
+    def _restore_row_weights(self):
+        """Restore original row weights when presets are collapsed."""
+        if self.original_row_weights:
+            for row, weight in self.original_row_weights.items():
+                self.parent.grid_rowconfigure(row, weight=weight)
+        
+        # Reset presets row weight
+        self.parent.grid_rowconfigure(7, weight=0)
+
     def setup_preset_card_styles(self, bg_color, accent_color):
         """Set up common styles for preset cards once to avoid recreating them repeatedly."""
         preset_bg_color = "#f0f4f8"  # Light blue-gray that contrasts with the main background
@@ -251,13 +293,26 @@ class PresetsManager:
         else:
             display_phrases = next((cat["phrases"] for cat in self.presets if cat["category"] == self.current_category), [])
 
-        # Update canvas width to calculate dynamic column width
-        self.presets_canvas.update_idletasks()
-        preset_width = max(self.presets_canvas.winfo_width() // 3, 150)  # Minimum width of 150
+        # Clear existing preset layout
+        for widget in self.presets_scrollable_frame.winfo_children():
+            widget.destroy()
+            
+        # Calculate number of columns based on available width
+        canvas_width = self.presets_canvas.winfo_width()
+        # Ensure we have a minimum width to calculate with
+        if canvas_width < 50:  # If the canvas is too narrow or not yet realized
+            canvas_width = self.parent.winfo_width() - 30  # Estimate canvas width
+            
+        # Calculate number of columns (minimum 1, maximum 20)
+        min_card_width = 140  # Minimum width for each card
+        num_columns = max(1, min(20, canvas_width // min_card_width))
+        
+        # Dynamically adjust card width based on available space
+        preset_width = max(min_card_width, canvas_width // num_columns - 8)
         preset_height = 100
         
         # Configure columns to fill available space
-        for col in range(3):
+        for col in range(num_columns):
             self.presets_scrollable_frame.columnconfigure(col, weight=1)
 
         # Populate filtered presets in grid layout
@@ -265,17 +320,21 @@ class PresetsManager:
             # Create a unique identifier for the card
             card_id = f"{phrase['text']}"
             
+            # Calculate row and column based on the dynamic column count
+            row = i // num_columns
+            col = i % num_columns
+            
             # Create a frame with no border for cleaner look
             frame = ttk.Frame(self.presets_scrollable_frame, width=preset_width, height=preset_height)
-            frame.grid(row=i // 4, column=i % 4, padx=3, pady=3, sticky="nsew")
+            frame.grid(row=row, column=col, padx=3, pady=3, sticky="nsew")
             frame.grid_propagate(False)
             
             # Create inner frame with distinct background and no border - use common style
             inner_frame = ttk.Frame(frame, style='PresetCard.TFrame')
             inner_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
 
-            self.presets_scrollable_frame.grid_columnconfigure(i % 4, weight=1)  # Make columns expandable
-            self.presets_scrollable_frame.grid_rowconfigure(i // 4, weight=1)    # Make rows expandable
+            # Make sure all rows are expandable too
+            self.presets_scrollable_frame.grid_rowconfigure(row, weight=1)
             
             # Text label with truncation for long text - use common style
             wrapped_text = self.wrap_text(phrase["text"], max_lines=3, max_chars_per_line=20)
@@ -448,12 +507,26 @@ class PresetsManager:
             self.presets_frame.grid()
             # Update button icon to down chevron while preserving text
             self.presets_button.configure(image=self.chevron_down, text=" Presets")
-            self.parent.geometry(self.parent.default_geometry)  
+            self.parent.geometry(self.parent.default_geometry)
+            # Adjust row weights to give all expansion space to presets
+            self._adjust_row_weights()
+            # Refresh the presets display to adjust for the new window size
+            self.refresh_presets_display()
         else:
             self.presets_frame.grid_remove()
             # Update button icon to right chevron while preserving text
             self.presets_button.configure(image=self.chevron_right, text=" Presets")
-            self.parent.geometry(self.parent.untoggled_geometry) 
+            
+            # Add extra padding to the untoggled geometry to prevent button from being cut off
+            # Parse the current untoggled geometry
+            width, height = map(int, self.parent.untoggled_geometry.split('x'))
+            # Add 15 pixels to the height to prevent button cutoff
+            adjusted_height = height + 15
+            adjusted_geometry = f"{width}x{adjusted_height}"
+            
+            self.parent.geometry(adjusted_geometry)
+            # Restore original row weights
+            self._restore_row_weights()
         self.presets_collapsed = not self.presets_collapsed
 
     def save_current_text_as_preset(self):
