@@ -42,9 +42,29 @@ class TextToMic(tk.Tk):
         if self.tk.call('tk', 'windowingsystem') == 'aqua':
             self.style.theme_use('aqua')
         else:
-            self.style.theme_use('clam')  # Fallback to 'clam' on non-macOS systems
+            # Create a custom theme instead of using 'clam'
+            self.style.theme_use('clam')
+            
+            # Define a modern color scheme with clean light greys
+            bg_color = "#f5f5f7"       # Very light grey background
+            accent_color = "#e0e0e4"   # Slightly darker grey for accents
+            text_color = "#333333"     # Dark grey for text
+            button_bg = "#e8e8ec"      # Light grey for buttons
+            
+            # Configure default styles for various widgets
+            self.style.configure('TFrame', background=bg_color)
+            self.style.configure('TLabel', background=bg_color, foreground=text_color)
+            self.style.configure('TButton', background=button_bg, foreground=text_color)
+            self.style.configure('TCheckbutton', background=bg_color, foreground=text_color)
+            self.style.configure('TRadiobutton', background=bg_color, foreground=text_color)
+            self.style.configure('TMenubutton', background=button_bg, foreground=text_color)
+            self.style.configure('TEntry', fieldbackground=bg_color, foreground=text_color)
+            self.style.configure('TCombobox', fieldbackground=bg_color, foreground=text_color)
+            
+            # Override the background color of the main window
+            self.configure(background=bg_color)
 
-        #Define stules
+        #Define styles
         self.style.configure('Recording.TButton', background='red', foreground='white')
         self.style.configure("Green.TButton", background="green", foreground="white")
 
@@ -179,6 +199,10 @@ class TextToMic(tk.Tk):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
+        # Use the background color from our style for the text widget
+        bg_color = self.style.lookup('TFrame', 'background')
+        text_color = self.style.lookup('TLabel', 'foreground')
+
         # Voice Selection
         self.voice_var = tk.StringVar()
         voices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
@@ -226,6 +250,10 @@ class TextToMic(tk.Tk):
         
         # Specify the text to read
         self.text_input = tk.Text(main_frame, height=5, width=68)
+        # Apply our custom styling to the text input
+        bg_color = self.style.lookup('TFrame', 'background')
+        text_color = self.style.lookup('TLabel', 'foreground')
+        self.text_input.configure(bg=bg_color, fg=text_color, insertbackground=text_color)
         self.text_input.grid(column=0, row=6, columnspan=2, pady=(0, 20), sticky="nsew")  # Fill available width
 
 
@@ -266,12 +294,23 @@ class TextToMic(tk.Tk):
         self.tab_frame = ttk.Frame(self.presets_frame)
         self.tab_frame.pack(fill=tk.X)
 
+        # Style for flat buttons
+        bg_color = self.style.lookup('TFrame', 'background')
+        accent_color = "#e0e0e4"  # Slightly darker grey for accents
+        
+        self.style.configure("Flat.TButton",
+                             borderwidth=0,
+                             highlightthickness=0,
+                             font=("Arial", 12),
+                             anchor="center",
+                             background=bg_color)
+
         # Thinner left arrow for tabs
         self.left_arrow = ttk.Button(self.tab_frame, text="◀", command=self.scroll_left, width=2, style="Flat.TButton")
         self.left_arrow.pack(side=tk.LEFT, padx=1)  # Reduced padding
 
         # Canvas for scrolling tabs horizontally, removing the horizontal scrollbar
-        self.tabs_canvas = Canvas(self.tab_frame, height=30)
+        self.tabs_canvas = Canvas(self.tab_frame, height=30, bg=bg_color, highlightthickness=0)
         self.tabs_canvas.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.tabs_frame_inner = ttk.Frame(self.tabs_canvas)
         self.tabs_canvas.create_window((0, 0), window=self.tabs_frame_inner, anchor="nw")
@@ -281,7 +320,7 @@ class TextToMic(tk.Tk):
         self.right_arrow.pack(side=tk.RIGHT, padx=1)  # Reduced padding
 
         # Presets display area with a fixed height and vertical scrollbar
-        self.presets_canvas = Canvas(self.presets_frame, height=250, width=self.presets_frame.winfo_width())
+        self.presets_canvas = Canvas(self.presets_frame, height=250, width=self.presets_frame.winfo_width(), bg=bg_color, highlightthickness=0)
         self.presets_scrollbar = Scrollbar(self.presets_frame, orient="vertical", command=self.presets_canvas.yview)
         self.presets_canvas.configure(yscrollcommand=self.presets_scrollbar.set)
 
@@ -297,7 +336,7 @@ class TextToMic(tk.Tk):
         self.presets_scrollable_frame.bind("<Configure>", lambda e: self.presets_canvas.configure(scrollregion=self.presets_canvas.bbox("all")))
 
         # Populate tabs and presets
-        self.populate_tabs()
+        self.populate_tabs()  # Refresh tabs to show selection
         self.refresh_presets_display()
         self.toggle_presets()
         self.toggle_presets()
@@ -867,53 +906,62 @@ Please also make sure you read the Terms of use and licence statement before usi
         preset_width = max(self.presets_canvas.winfo_width() // 3, 150)  # Minimum width of 100
         preset_height = 100
 
-        print(f"preset width: {preset_width}")
+        # Get our custom style colors
+        bg_color = self.style.lookup('TFrame', 'background')
+        text_color = self.style.lookup('TLabel', 'foreground')
+        accent_color = "#e0e0e4"  # Slightly darker grey for accents
 
         # Configure columns to fill available space
         for col in range(3):
             self.presets_scrollable_frame.columnconfigure(col, weight=1)
 
-
         # Populate filtered presets in grid layout
         for i, phrase in enumerate(display_phrases):
-            frame = ttk.Frame(self.presets_scrollable_frame, width=preset_width, height=preset_height, relief="solid", borderwidth=1)
-            frame.grid(row=i // 4, column=i % 4, padx=2, pady=2, sticky="nsew")
+            # Create a frame with soft border and clean look
+            frame = ttk.Frame(self.presets_scrollable_frame, width=preset_width, height=preset_height)
+            frame.grid(row=i // 4, column=i % 4, padx=3, pady=3, sticky="nsew")
             frame.grid_propagate(False)
+            
+            # Create a subtle border around each preset with more modern look
+            inner_frame = ttk.Frame(frame, style='Card.TFrame')
+            inner_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+            
+            # Style for card-like appearance
+            self.style.configure('Card.TFrame', 
+                                 background=bg_color,
+                                 borderwidth=1,
+                                 relief="solid")
 
             self.presets_scrollable_frame.grid_columnconfigure(i % 4, weight=1)  # Make columns expandable
             self.presets_scrollable_frame.grid_rowconfigure(i // 4, weight=1)    # Make rows expandable
 
-
-
             # Text label with truncation for long text
             wrapped_text = self.wrap_text(phrase["text"], max_lines=3, max_chars_per_line=20)
-            label = ttk.Label(frame, text=wrapped_text, anchor="center", justify="center", width=20)
+            label = ttk.Label(inner_frame, text=wrapped_text, anchor="center", justify="center", width=20)
             label.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
             label.bind("<Button-1>", lambda e, t=phrase["text"]: self.insert_text(t))
             label.bind("<Double-Button-1>", lambda e, t=phrase["text"]: self.play_preset(t))
 
             # Bottom frame for icons
-            bottom_frame = ttk.Frame(frame)
+            bottom_frame = ttk.Frame(inner_frame)
             bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=2)
 
+            # Style for flat buttons with our modern look
             self.style.configure("Flat.TButton",
                      borderwidth=0,
                      highlightthickness=0,
-                     font=("Arial", 12),  # Adjust font and size
-                     anchor="center")     # Center text
-
+                     font=("Arial", 12),
+                     anchor="center",
+                     background=bg_color)
 
             # Favourite button
             fav_icon = "❤️" if phrase["isFavourite"] else "♡"
             fav_btn = ttk.Button(bottom_frame, text=fav_icon, command=lambda p=phrase: self.toggle_favourite(p), width=2, style="Flat.TButton")
             fav_btn.pack(side=tk.RIGHT, padx=2)
-            #fav_btn.config(borderwidth=0, highlightthickness=0)  # Remove border
 
             # Delete button
             del_btn = ttk.Button(bottom_frame, text="🗑️", command=lambda t=phrase["text"]: self.delete_preset(self.current_category, t), width=2, style="Flat.TButton")
             del_btn.pack(side=tk.RIGHT, padx=2)
-            #del_btn.config(borderwidth=0, highlightthickness=0)  # Remove border
-
 
         # Update scroll region after populating all items
         self.presets_canvas.configure(scrollregion=self.presets_canvas.bbox("all"))
