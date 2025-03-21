@@ -363,6 +363,7 @@ class TextToMic(tk.Tk):
 
         # Button configuration
         self.recording = False  # State to check if currently recording
+        self.is_playing = False  # State to check if audio is playing
         
         # Create CTk buttons with proper rounded corners
         button_height = 35
@@ -375,9 +376,9 @@ class TextToMic(tk.Tk):
             corner_radius=20,
             height=button_height,
             width=button_width,
-            fg_color="#d32f2f",
+            fg_color="#058705",
             font=("Arial", 13, "bold"),
-            command=self.toggle_recording
+            command=self.handle_record_button_click
         )
         self.record_button.grid(row=0, column=0, sticky="ew", padx=(0, 10))
         
@@ -390,7 +391,7 @@ class TextToMic(tk.Tk):
             width=button_width,
             fg_color="#058705",
             font=("Arial", 13, "bold"),
-            command=self.submit_text
+            command=self.handle_submit_button_click
         )
         self.submit_button.grid(row=0, column=1, sticky="ew", padx=(10, 0))
 
@@ -607,7 +608,6 @@ Please also make sure you read the Terms of use and licence statement before usi
 
 
     def submit_text(self, play_text = None):
-
         print(f"submit text self recording: {self.recording}")
         if self.recording:
             print("Stopping recording")
@@ -697,6 +697,10 @@ Please also make sure you read the Terms of use and licence statement before usi
             self.current_playback_p = pyaudio.PyAudio()
             self.current_playback_streams = []
             self.is_playing = True
+            
+            # Update button text to show Stop with cancel operation shortcut
+            self.update_buttons_for_playback(True)
+            
         except Exception as e:
             print(f"Error initializing PyAudio: {e}")
             messagebox.showerror("Audio Error", f"Failed to initialize audio system: {e}")
@@ -822,6 +826,9 @@ Please also make sure you read the Terms of use and licence statement before usi
         
         # Set flag first to exit any playback loops
         self.is_playing = False
+        
+        # Revert buttons to normal state
+        self.update_buttons_for_playback(False)
         
         try:
             # Close any active streams
@@ -1052,8 +1059,8 @@ Please also make sure you read the Terms of use and licence statement before usi
             stop_shortcut = "+".join(filter(None, settings["hotkeys"]["stop_recording"]))
             
             # Update CTkButton for recording state, keeping shortcuts visible
-            self.record_button.configure(text=f"Stop and Insert ({record_shortcut})", fg_color="#d32f2f")
-            self.submit_button.configure(text=f"Stop and Play ({play_shortcut})", fg_color="#d32f2f")
+            self.record_button.configure(text=f"Stop and Insert", fg_color="#d32f2f")
+            self.submit_button.configure(text=f"Stop and Play ({record_shortcut})", fg_color="#d32f2f")
 
             self.frames = []
 
@@ -1096,7 +1103,7 @@ Please also make sure you read the Terms of use and licence statement before usi
         play_shortcut = "+".join(filter(None, settings["hotkeys"]["play_last_audio"]))
         
         # Reset button appearance
-        self.record_button.configure(text=f"Record Mic ({record_shortcut})", fg_color="#d32f2f")
+        self.record_button.configure(text=f"Record Mic ({record_shortcut})", fg_color="#058705")
         self.submit_button.configure(text=f"Play Audio ({play_shortcut})", fg_color="#058705")
 
     def save_recording(self, auto_play = False):
@@ -1109,8 +1116,10 @@ Please also make sure you read the Terms of use and licence statement before usi
         wf.close()
         print("Recording saved.")
 
+        # If auto_play is requested, we'll handle it through the transcribe_audio callback
+        # This ensures proper button state updates regardless of how playback is triggered
         self.after(0, self.transcribe_audio, file_path, auto_play)
-
+        
     def transcribe_audio(self, file_path, auto_play = False):
         try:
             with open(str(file_path), "rb") as audio_file:
@@ -1142,7 +1151,8 @@ Please also make sure you read the Terms of use and licence statement before usi
 
             if auto_play:
                 print(f"Triggering auto play with: {play_text} ")
-                self.submit_text_helper(play_text = play_text)
+                # Use a slight delay to allow UI to update before playback starts
+                self.after(100, lambda: self.submit_text_helper(play_text = play_text))
             
             print("Transcription Complete: The audio has been transcribed and the text has been placed in the input area.")
         
@@ -1318,5 +1328,48 @@ Please also make sure you read the Terms of use and licence statement before usi
             # Refresh presets display if they're visible
             if not self.presets_collapsed:
                 self.presets_manager.refresh_presets_display()
+
+    def update_buttons_for_playback(self, is_playing):
+        """Update button text based on playback state."""
+        try:
+            # Get keyboard shortcuts from settings
+            settings = self.load_settings()
+            record_shortcut = "+".join(filter(None, settings["hotkeys"]["record_start_stop"]))
+            play_shortcut = "+".join(filter(None, settings["hotkeys"]["play_last_audio"]))
+            cancel_shortcut = "+".join(filter(None, settings["hotkeys"]["cancel_operation"]))
+            
+            if is_playing:
+                # Set both buttons to show stop with cancel shortcut
+                self.record_button.configure(text=f"Stop Audio ({cancel_shortcut})", fg_color="#d32f2f")
+                self.submit_button.configure(text=f"Stop Audio ({cancel_shortcut})", fg_color="#d32f2f")
+            else:
+                # Reset buttons to normal state
+                self.record_button.configure(text=f"Record Mic ({record_shortcut})", fg_color="#058705")
+                self.submit_button.configure(text=f"Play Audio ({play_shortcut})", fg_color="#058705")
+        except Exception as e:
+            print(f"Error updating buttons: {e}")
+            # Don't raise the exception further to prevent crashes
+
+    def handle_record_button_click(self):
+        """Handle clicks on the record button based on current state."""
+        if self.is_playing:
+            # If audio is playing, stop it
+            self.stop_playback()
+        else:
+            # Otherwise, toggle recording as before
+            self.toggle_recording()
+    
+    def handle_submit_button_click(self, via_hotkey=False):
+        """Handle clicks on the submit/play button based on current state."""
+        if self.is_playing:
+            # If audio is playing, stop it
+            self.stop_playback()
+        elif self.recording and via_hotkey:
+            # If recording and triggered via hotkey, stop recording and play
+            self.recording = False
+            self.stop_recording(auto_play=True)
+        else:
+            # Otherwise, submit text as before
+            self.submit_text()
 
 

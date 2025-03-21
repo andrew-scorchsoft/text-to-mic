@@ -180,7 +180,15 @@ class HotkeyManager:
         """Trigger recording or stop recording and submit."""
         if self.app.recording:
             self.app.play_sound('assets/pop.wav')
-            self.app.submit_text()
+            # When stopping via hotkey, we want to correctly update UI for playback
+            # We'll use the same methods as the button click handlers would use
+            if hasattr(self.app, 'handle_submit_button_click'):
+                # This will properly handle stopping recording and playing audio
+                # with appropriate UI updates
+                self.app.handle_submit_button_click(via_hotkey=True)
+            else:
+                # Fall back to the old behavior if the handler isn't available
+                self.app.submit_text()
         else:
             if not self.app.recording:
                 self.app.start_recording(play_confirm_sound=True)
@@ -224,8 +232,13 @@ class HotkeyManager:
         """Safely cancel playback on the main thread."""
         try:
             if hasattr(self.app, 'stop_playback') and callable(self.app.stop_playback):
+                # This will also update the buttons through the stop_playback method
                 self.app.stop_playback()
                 print("Playback cancelled successfully")
+                
+                # Ensure buttons are reset (belt and suspenders approach)
+                if hasattr(self.app, 'update_buttons_for_playback') and callable(self.app.update_buttons_for_playback):
+                    self.app.update_buttons_for_playback(False)
         except Exception as e:
             print(f"Error canceling playback: {e}")
     
