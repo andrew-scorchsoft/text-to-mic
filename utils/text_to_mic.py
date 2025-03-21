@@ -144,7 +144,7 @@ class TextToMic(tk.Tk):
         instruction_window.title("App Version")
         instruction_window.geometry("300x150")  # Width x Height
 
-        instructions = """Version 1.3.0\n\n App by Scorchsoft.com"""
+        instructions = """Version 1.3.5\n\n App by Scorchsoft.com"""
         
         tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=280).pack(padx=10, pady=10)
         
@@ -347,7 +347,7 @@ class TextToMic(tk.Tk):
         self.text_input = tk.Text(main_frame, height=5, width=68)
         # Use white background for text input instead of the system background color
         text_color = self.style.lookup('TLabel', 'foreground')
-        self.text_input.configure(bg="white", fg=text_color, insertbackground=text_color)
+        self.text_input.configure(bg="white", fg=text_color, insertbackground=text_color, wrap=tk.WORD)
         self.text_input.grid(column=0, row=5, columnspan=2, pady=(0, 20), sticky="nsew")  # Proper spacing
 
         # Create a frame for the buttons to allow for better styling
