@@ -9,7 +9,7 @@ import json
 import sys
 
 from pystray import Icon as icon, MenuItem as item, Menu as menu
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageTk
 from tkinter import ttk, messagebox, simpledialog, Menu, Frame, Canvas, Scrollbar
 import customtkinter as ctk
 from openai import OpenAI
@@ -22,6 +22,7 @@ from utils.api_key_manager import APIKeyManager
 from utils.hotkey_manager import HotkeyManager
 from utils.resource_utils import ResourceUtils
 from utils.tone_presets_manager import TonePresetsManager
+from utils.presets_manager import PresetsManager
 
 # Modify the load environment variables to load from config/.env
 def load_env_file():
@@ -40,6 +41,9 @@ class TextToMic(tk.Tk):
 
         self.available_models = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo"]
         self.default_model = "gpt-4o-mini"
+
+        # Cache for icons - will store loaded and resized icon images
+        self.icon_cache = {}
 
         self.style = ttk.Style(self)
         if self.tk.call('tk', 'windowingsystem') == 'aqua':
@@ -71,11 +75,6 @@ class TextToMic(tk.Tk):
         self.style.configure('Recording.TButton', background='red', foreground='white')
         self.style.configure("Green.TButton", background="green", foreground="white")
 
-        self.presets = self.load_presets()
-        self.current_category = "All"
-        self.presets_collapsed = True 
-
-
         # Ensure that the config directory exists
         self.ensure_config_directory()
         load_env_file()
@@ -100,7 +99,14 @@ class TextToMic(tk.Tk):
         # Load tone presets
         self.tone_presets = TonePresetsManager.load_tone_presets(self)
         self.current_tone_name = self.load_current_tone_from_settings()
+        
+        # Create the category variable for the dropdown
+        self.category_var = tk.StringVar(value="Select Category")
 
+        # Create the presets manager before initializing the GUI
+        self.presets_manager = PresetsManager(self)
+
+        # Create menu and initialize GUI after presets manager is created
         self.create_menu()
         self.initialize_gui()
         
@@ -301,8 +307,7 @@ class TextToMic(tk.Tk):
         save_frame.grid(column=1, row=0, sticky=tk.E)
 
         # Preset Category dropdown
-        self.category_var = tk.StringVar(value="Select Category")
-        categories = [cat["category"] for cat in self.presets]
+        categories = [cat["category"] for cat in self.presets_manager.presets]
         category_menu = ttk.OptionMenu(save_frame, self.category_var, *categories)
         category_menu.grid(column=0, row=0, sticky=tk.E, padx=(0, 5))
         category_menu.config(style='Compact.TMenubutton')
@@ -365,8 +370,6 @@ class TextToMic(tk.Tk):
         )
         self.submit_button.grid(row=0, column=1, sticky="ew", padx=(10, 0))
 
-        self.create_presets_section()
-
         #Credits
         # Banner image that links to Scorchsoft
         banner_path = self.resource_path("assets/ss-banner-550.png")
@@ -384,110 +387,12 @@ class TextToMic(tk.Tk):
             info_label.grid(column=0, row=7, columnspan=2, pady=(10, 10))
             info_label.bind("<Button-1>", lambda e: self.open_scorchsoft())
 
-    def create_presets_section(self):
-        # Accordion frame to show/hide presets section
-        self.presets_frame = ttk.Frame(self)
-        self.presets_button = ttk.Button(self, text="▶ Presets", command=self.toggle_presets)
-        self.presets_button.grid(column=0, row=6, columnspan=2, sticky=tk.W)
-        self.presets_frame.grid(column=0, row=7, columnspan=2, sticky=(tk.W, tk.E))
-
-        # Tabs for categories with scrolling arrows
-        self.tab_frame = ttk.Frame(self.presets_frame)
-        self.tab_frame.pack(fill=tk.X)
-
-        # Style for flat buttons
-        bg_color = self.style.lookup('TFrame', 'background')
-        accent_color = "#e0e0e4"  # Slightly darker grey for accents
-        
-        self.style.configure("Flat.TButton",
-                             borderwidth=0,
-                             highlightthickness=0,
-                             font=("Arial", 12),
-                             anchor="center",
-                             background=bg_color)
-
-        # Thinner left arrow for tabs
-        self.left_arrow = ttk.Button(self.tab_frame, text="◀", command=self.scroll_left, width=2, style="Flat.TButton")
-        self.left_arrow.pack(side=tk.LEFT, padx=1)  # Reduced padding
-
-        # Canvas for scrolling tabs horizontally, removing the horizontal scrollbar
-        self.tabs_canvas = Canvas(self.tab_frame, height=30, bg=bg_color, highlightthickness=0)
-        self.tabs_canvas.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        self.tabs_frame_inner = ttk.Frame(self.tabs_canvas)
-        self.tabs_canvas.create_window((0, 0), window=self.tabs_frame_inner, anchor="nw")
-
-        # Thinner right arrow for tabs
-        self.right_arrow = ttk.Button(self.tab_frame, text="▶", command=self.scroll_right, width=2, style="Flat.TButton")
-        self.right_arrow.pack(side=tk.RIGHT, padx=1)  # Reduced padding
-
-        # Presets display area with a fixed height and vertical scrollbar
-        self.presets_canvas = Canvas(self.presets_frame, height=250, width=self.presets_frame.winfo_width(), bg=bg_color, highlightthickness=0)
-        self.presets_scrollbar = Scrollbar(self.presets_frame, orient="vertical", command=self.presets_canvas.yview)
-        self.presets_canvas.configure(yscrollcommand=self.presets_scrollbar.set)
-
-        # Frame inside the canvas to hold presets
-        self.presets_scrollable_frame = ttk.Frame(self.presets_canvas)
-        self.presets_canvas.create_window((0, 0), window=self.presets_scrollable_frame, anchor="nw")
-
-        # Pack the canvas and scrollbar
-        self.presets_canvas.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        self.presets_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # Configure the scroll region to update when the frame changes
-        self.presets_scrollable_frame.bind("<Configure>", lambda e: self.presets_canvas.configure(scrollregion=self.presets_canvas.bbox("all")))
-
-        # Populate tabs and presets
-        self.populate_tabs()  # Refresh tabs to show selection
-        self.refresh_presets_display()
-        self.toggle_presets()
-        self.toggle_presets()
-        self.enable_mouse_wheel_scrolling()
-
-
-
-    def scroll_left(self):
-        self.tabs_canvas.xview_scroll(-5, "units")
-
-    def scroll_right(self):
-        self.tabs_canvas.xview_scroll(5, "units")
-
-
-    def enable_mouse_wheel_scrolling(self):
-        """Enable conditional mouse wheel scrolling for the presets canvas and category tabs canvas."""
-
-        def on_vertical_scroll(event):
-            # Scroll the presets_canvas vertically
-            if event.num == 4:  # macOS scroll up
-                self.presets_canvas.yview_scroll(-1, "units")
-            elif event.num == 5:  # macOS scroll down
-                self.presets_canvas.yview_scroll(1, "units")
-            else:  # Windows and Linux
-                self.presets_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
-        def on_horizontal_scroll(event):
-            # Scroll the tabs_canvas horizontally
-            if event.num == 4:  # macOS scroll left
-                self.tabs_canvas.xview_scroll(-1, "units")
-            elif event.num == 5:  # macOS scroll right
-                self.tabs_canvas.xview_scroll(1, "units")
-            else:  # Windows and Linux
-                self.tabs_canvas.xview_scroll(int(-1 * (event.delta / 120)), "units")
-
-        # Bind scroll events when mouse enters or leaves the presets canvas area
-        self.presets_canvas.bind("<Enter>", lambda e: self.presets_canvas.bind_all("<MouseWheel>", on_vertical_scroll))
-        self.presets_canvas.bind("<Leave>", lambda e: self.presets_canvas.unbind_all("<MouseWheel>"))
-
-        # Bind scroll events when mouse enters or leaves the tabs canvas area
-        self.tabs_canvas.bind("<Enter>", lambda e: self.tabs_canvas.bind_all("<MouseWheel>", on_horizontal_scroll))
-        self.tabs_canvas.bind("<Leave>", lambda e: self.tabs_canvas.unbind_all("<MouseWheel>"))
-
-
-    
     def open_scorchsoft(self, event=None):
         webbrowser.open('https://www.scorchsoft.com')
 
-
-
+    def save_current_text_as_preset(self):
+        """Forward the save request to the presets manager."""
+        self.presets_manager.save_current_text_as_preset()
 
     def show_instructions(self):
         instruction_window = tk.Toplevel(self)
@@ -534,7 +439,6 @@ Please also make sure you read the Terms of use and licence statement before usi
         # Add a button to close the window
         ttk.Button(instruction_window, text="Close", command=instruction_window.destroy).pack(pady=(10, 0))
 
-
     def show_terms_of_use(self):
         # Get the path to the LICENSE.md file using the resource_path method
         license_path = self.resource_path("LICENSE.md")
@@ -577,13 +481,6 @@ Please also make sure you read the Terms of use and licence statement before usi
 
         # Add a button to close the window
         ttk.Button(instruction_window, text="Close", command=instruction_window.destroy).pack(pady=(10, 0))
-
-
-
-
-
-
-
 
     def get_app_support_path_mac(self):
         home = Path.home()
@@ -965,262 +862,6 @@ Please also make sure you read the Terms of use and licence statement before usi
             return_text = text
 
         return return_text
-
-
-
-
-    def populate_tabs(self):
-        # Clear current tabs
-        for widget in self.tabs_frame_inner.winfo_children():
-            widget.destroy()
-
-        # Add "All" and "Favourites" tabs along with dynamic categories
-        for category in ["All", "Favourites"] + [cat["category"] for cat in self.presets if cat["category"] not in ["All", "Favourites"]]:
-            btn = ttk.Button(self.tabs_frame_inner, text=category, command=lambda c=category: self.switch_category(c))
-            btn.pack(side=tk.LEFT, padx=2)
-
-            # Style selected category
-            if category == self.current_category:
-                btn.state(['pressed'])  # Visual style for selected tab
-            else:
-                btn.state(['!pressed'])
-
-    def switch_category(self, category):
-        """Switch displayed category."""
-        self.current_category = category
-        self.populate_tabs()  # Refresh tabs to show selection
-        self.refresh_presets_display()
-
-    def refresh_presets_display(self):
-        """Refresh displayed presets based on selected category."""
-
-        # Clear existing items in the scrollable frame
-        for widget in self.presets_scrollable_frame.winfo_children():
-            widget.destroy()
-
-        # Debounce - cancel any previous refresh call if pending
-        if hasattr(self, 'refresh_handle'):
-            self.after_cancel(self.refresh_handle)
-        self.refresh_handle = self.after(100, self._populate_presets)
-
-    def _populate_presets(self):
-        """Populate presets into grid layout with responsive columns."""
-        # Filter presets based on current category
-        display_phrases = []
-        if self.current_category == "All":
-            for cat in self.presets:
-                display_phrases.extend(cat["phrases"])
-        elif self.current_category == "Favourites":
-            for cat in self.presets:
-                display_phrases.extend([p for p in cat["phrases"] if p["isFavourite"]])
-        else:
-            display_phrases = next((cat["phrases"] for cat in self.presets if cat["category"] == self.current_category), [])
-
-        # Update canvas width to calculate dynamic column width
-        self.presets_canvas.update_idletasks()
-        preset_width = max(self.presets_canvas.winfo_width() // 3, 150)  # Minimum width of 100
-        preset_height = 100
-
-        # Get our custom style colors
-        bg_color = self.style.lookup('TFrame', 'background')
-        text_color = self.style.lookup('TLabel', 'foreground')
-        
-        # Use a light gray with subtle blue tint for preset buttons - distinct from white but still clean
-        preset_bg_color = "#f0f4f8"  # Light blue-gray that contrasts with the main background
-        
-        # Configure columns to fill available space
-        for col in range(3):
-            self.presets_scrollable_frame.columnconfigure(col, weight=1)
-
-        # Populate filtered presets in grid layout
-        for i, phrase in enumerate(display_phrases):
-            # Create a frame with no border for cleaner look
-            frame = ttk.Frame(self.presets_scrollable_frame, width=preset_width, height=preset_height)
-            frame.grid(row=i // 4, column=i % 4, padx=3, pady=3, sticky="nsew")
-            frame.grid_propagate(False)
-            
-            # Create a unique style name for each card to avoid affecting other widgets
-            card_style_name = f'Card{i}.TFrame'
-            self.style.configure(card_style_name, 
-                                background=preset_bg_color,
-                                borderwidth=0,
-                                relief="flat")
-            
-            # Create inner frame with distinct background and no border
-            inner_frame = ttk.Frame(frame, style=card_style_name)
-            inner_frame.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
-
-            self.presets_scrollable_frame.grid_columnconfigure(i % 4, weight=1)  # Make columns expandable
-            self.presets_scrollable_frame.grid_rowconfigure(i // 4, weight=1)    # Make rows expandable
-
-            # Create a unique style for each label
-            label_style_name = f'CardLabel{i}.TLabel'
-            self.style.configure(label_style_name, 
-                                background=preset_bg_color,
-                                foreground=text_color)
-            
-            # Text label with truncation for long text
-            wrapped_text = self.wrap_text(phrase["text"], max_lines=3, max_chars_per_line=20)
-            label = ttk.Label(inner_frame, text=wrapped_text, anchor="center", justify="center", 
-                            width=20, style=label_style_name)
-            label.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-            label.bind("<Button-1>", lambda e, t=phrase["text"]: self.insert_text(t))
-            label.bind("<Double-Button-1>", lambda e, t=phrase["text"]: self.play_preset(t))
-
-            # Create a unique style for each bottom frame
-            bottom_frame_style = f'BottomFrame{i}.TFrame'
-            self.style.configure(bottom_frame_style, background=preset_bg_color)
-            
-            # Bottom frame for icons
-            bottom_frame = ttk.Frame(inner_frame, style=bottom_frame_style)
-            bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=2)
-
-            # Create a unique style for each button
-            button_style_name = f'FlatButton{i}.TButton'
-            self.style.configure(button_style_name,
-                     borderwidth=0,
-                     highlightthickness=0,
-                     font=("Arial", 12),
-                     anchor="center",
-                     background=preset_bg_color)
-
-            # Favourite button
-            fav_icon = "❤️" if phrase["isFavourite"] else "♡"
-            fav_btn = ttk.Button(bottom_frame, text=fav_icon, 
-                              command=lambda p=phrase: self.toggle_favourite(p), 
-                              width=2, style=button_style_name)
-            fav_btn.pack(side=tk.RIGHT, padx=2)
-
-            # Delete button
-            del_btn = ttk.Button(bottom_frame, text="🗑️", 
-                             command=lambda t=phrase["text"]: self.delete_preset(self.current_category, t), 
-                             width=2, style=button_style_name)
-            del_btn.pack(side=tk.RIGHT, padx=2)
-
-        # Update scroll region after populating all items
-        self.presets_canvas.configure(scrollregion=self.presets_canvas.bbox("all"))
-
-
-    def wrap_text(self, text, max_lines=3, max_chars_per_line=20):
-        """Wrap text to fit within a limited number of lines and characters."""
-        words = text.split()
-        wrapped_text = ""
-        line = ""
-        line_count = 0
-
-        for word in words:
-            if len(line + word) <= max_chars_per_line:
-                line += word + " "
-            else:
-                wrapped_text += line.strip() + "\n"
-                line = word + " "
-                line_count += 1
-                if line_count >= max_lines - 1:  # Leave space for ellipsis
-                    break
-
-        # Add final line and handle overflow with ellipsis
-        wrapped_text += line.strip()
-        if line_count >= max_lines - 1 and len(wrapped_text.splitlines()) >= max_lines:
-            wrapped_text = "\n".join(wrapped_text.splitlines()[:max_lines - 1]) + "\n..."
-
-        return wrapped_text
-
-
-
-    def insert_text(self, text):
-        """Insert preset text into the text area."""
-        self.text_input.delete("1.0", tk.END)
-        self.text_input.insert("1.0", text)
-
-    def play_preset(self, text):
-        """Insert text and play audio immediately."""
-        self.insert_text(text)
-        self.submit_text()
-
-    def toggle_favourite(self, phrase):
-        """Toggle the favourite status of a preset."""
-        phrase["isFavourite"] = not phrase["isFavourite"]
-        self.save_presets()
-        self.refresh_presets_display()
-
-    def toggle_presets(self):
-        if self.presets_collapsed:
-            self.presets_frame.grid()
-            self.presets_button.config(text="▼ Presets")
-            self.geometry(self.default_geometry)  
-        else:
-            self.presets_frame.grid_remove()
-            self.presets_button.config(text="▶ Presets")
-            self.geometry(self.untoggled_geometry) 
-        self.presets_collapsed = not self.presets_collapsed
-
-
-    def save_current_text_as_preset(self):
-        """Save current text to the selected category as a preset."""
-        text = self.text_input.get("1.0", tk.END).strip()
-        category = self.category_var.get()
-        if text and category != "Select Category":
-            self.add_preset(category, text, is_favourite=False)
-            # Show success message with category information
-            messagebox.showinfo("Save Successful", f"The text has been successfully saved to the category: '{category}'.")
-        else:
-            messagebox.showinfo("Error", "Please enter text and select a category before saving.")
-
-
-    def load_presets(self):
-        """Load presets from the JSON file, copying from example if necessary."""
-        presets_path = Path("config/presets.json")
-        example_path = self.resource_path("assets/presets.example.json")  # Path for the example file
-
-        # Check if presets.json exists, and if not, copy presets.example.json to config
-        if not presets_path.exists():
-            try:
-                # Ensure config directory exists
-                presets_path.parent.mkdir(parents=True, exist_ok=True)
-                
-                # Copy example presets to config directory
-                with open(example_path, "r", encoding="utf-8") as example_file:
-                    with open(presets_path, "w", encoding="utf-8") as config_file:
-                        config_file.write(example_file.read())
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to copy example presets: {e}")
-                return []  # Return empty if unable to load or copy presets
-
-        # Load presets.json as usual
-        try:
-            with open(presets_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return data.get("presets", [])
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            messagebox.showerror("Error", f"Error loading presets: {e}")
-            return []  # Default to empty if load fails
-
-    def save_presets(self):
-        """Save presets to the JSON file."""
-        data = {"presets": self.presets}
-        with open("config/presets.json", "w") as f:
-            json.dump(data, f, indent=2)
-
-    def add_preset(self, category, text, is_favourite=False):
-        """Add a new preset and save it."""
-        for cat in self.presets:
-            if cat["category"] == category:
-                cat["phrases"].append({"text": text, "isFavourite": is_favourite})
-                break
-        else:
-            # Add a new category if not found
-            self.presets.append({"category": category, "phrases": [{"text": text, "isFavourite": is_favourite}]})
-        self.save_presets()
-        self.refresh_presets_display()
-
-    def delete_preset(self, category, text):
-        """Delete a preset by category and text."""
-        for cat in self.presets:
-            if cat["category"] == category:
-                cat["phrases"] = [p for p in cat["phrases"] if p["text"] != text]
-                break
-        self.save_presets()
-        self.refresh_presets_display()
 
     def get_device_info(self, device_index):
         p = pyaudio.PyAudio()
