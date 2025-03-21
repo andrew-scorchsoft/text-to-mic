@@ -252,7 +252,7 @@ class TextToMic(tk.Tk):
         ttk.Label(voice_frame, text="Voice Settings", font=("Arial", 10, "bold")).grid(column=0, row=0, sticky=tk.W, pady=(0, 10), columnspan=2)
 
         self.voice_var = tk.StringVar(value="fable")
-        voices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
+        voices = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer']
         ttk.Label(voice_frame, text="Voice:").grid(column=0, row=1, sticky=tk.W, pady=(0, 5))
         voice_menu = ttk.OptionMenu(voice_frame, self.voice_var, self.voice_var.get(), *voices)
         voice_menu.grid(column=1, row=1, sticky=tk.E, pady=(0, 5))
