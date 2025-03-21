@@ -4,7 +4,7 @@
 
 **Text to Mic** is a powerful, user-friendly application that seamlessly converts written text into natural-sounding speech, playing it over a virtual microphone. This tool is perfect for situations where you want to automate voice output — whether it's for presentations, online meetings, voiceovers, or accessibility purposes.
 
-![Example Image 1](images/app-screenshot-v1-0-9.png)
+![Example Image 1](images/app-screenshot-v1-3-5.png)
 
 More info about Text to Mic including a changelog can be found here:
 https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
