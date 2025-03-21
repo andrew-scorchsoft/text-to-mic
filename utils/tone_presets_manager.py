@@ -31,17 +31,17 @@ class TonePresetsManager:
         """Configure ttk styles for a clean, modern appearance"""
         style = ttk.Style()
         
-        # Clean frame style without the yellow tint
-        style.configure("TLabelframe", borderwidth=1, relief="solid", background="#ffffff")
-        style.configure("TLabelframe.Label", foreground="#333333", background="#ffffff", font=("Arial", 10))
+        # Use namespaced styles with "TonePresets." prefix to avoid affecting global styles
+        style.configure("TonePresets.TLabelframe", borderwidth=1, relief="solid", background="#ffffff")
+        style.configure("TonePresets.TLabelframe.Label", foreground="#333333", background="#ffffff", font=("Arial", 10))
         
-        # Clean button style
-        style.configure("TButton", foreground="#333333", background="#f0f0f0", font=("Arial", 10))
-        style.map("TButton", 
+        # Namespaced button style
+        style.configure("TonePresets.TButton", foreground="#333333", background="#f0f0f0", font=("Arial", 10))
+        style.map("TonePresets.TButton", 
                  background=[("active", "#e0e0e0"), ("pressed", "#d0d0d0")])
         
-        # Label style
-        style.configure("TLabel", foreground="#333333", background="#ffffff", font=("Arial", 10))
+        # Namespaced label style
+        style.configure("TonePresets.TLabel", foreground="#333333", background="#ffffff", font=("Arial", 10))
         
         # Listbox and Text widget styling will be applied directly to those widgets
 
@@ -63,7 +63,7 @@ class TonePresetsManager:
 
     def create_dialog(self):
         # Main container frame with padding
-        main_frame = ttk.Frame(self.dialog, padding="10")
+        main_frame = ttk.Frame(self.dialog, padding="10", style="TonePresets.TFrame")
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # Create left panel (tone selection)
@@ -76,11 +76,11 @@ class TonePresetsManager:
         self.create_bottom_frame()
 
     def create_left_panel(self, main_frame):
-        left_panel = ttk.Frame(main_frame, width=200)
+        left_panel = ttk.Frame(main_frame, width=200, style="TonePresets.TFrame")
         left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
         left_panel.pack_propagate(False)
 
-        select_frame = ttk.LabelFrame(left_panel, text="Tone Selection", padding="5")
+        select_frame = ttk.LabelFrame(left_panel, text="Tone Selection", padding="5", style="TonePresets.TLabelframe")
         select_frame.pack(fill=tk.BOTH, expand=True)
 
         # Listbox for tones with scrollbar
@@ -102,12 +102,12 @@ class TonePresetsManager:
                 self.tone_list.selection_set(all_tones.index(tone))
 
         # Button frame
-        button_frame = ttk.Frame(left_panel)
+        button_frame = ttk.Frame(left_panel, style="TonePresets.TFrame")
         button_frame.pack(fill=tk.X, pady=5)
 
         # Action buttons
-        self.new_button = ttk.Button(button_frame, text="New Tone", command=self.create_new_tone)
-        self.delete_button = ttk.Button(button_frame, text="Delete", command=self.delete_current_tone)
+        self.new_button = ttk.Button(button_frame, text="New Tone", command=self.create_new_tone, style="TonePresets.TButton")
+        self.delete_button = ttk.Button(button_frame, text="Delete", command=self.delete_current_tone, style="TonePresets.TButton")
         
         self.new_button.pack(side=tk.LEFT, padx=2)
         self.delete_button.pack(side=tk.LEFT, padx=2)
@@ -123,17 +123,17 @@ class TonePresetsManager:
             self.update_content()
 
     def create_right_panel(self, main_frame):
-        self.right_panel = ttk.Frame(main_frame)
+        self.right_panel = ttk.Frame(main_frame, style="TonePresets.TFrame")
         self.right_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        content_frame = ttk.LabelFrame(self.right_panel, text="Tone Description", padding="5")
+        content_frame = ttk.LabelFrame(self.right_panel, text="Tone Description", padding="5", style="TonePresets.TLabelframe")
         content_frame.pack(fill=tk.BOTH, expand=True)
 
-        self.edit_status_label = ttk.Label(content_frame, foreground="blue")
+        self.edit_status_label = ttk.Label(content_frame, foreground="blue", style="TonePresets.TLabel")
         self.edit_status_label.pack(anchor=tk.W, padx=5, pady=(5,0))
 
         # Create a frame to contain the text widget and scrollbar
-        text_frame = ttk.Frame(content_frame)
+        text_frame = ttk.Frame(content_frame, style="TonePresets.TFrame")
         text_frame.pack(fill=tk.BOTH, expand=True, pady=5)
 
         # Create vertical scrollbar only
@@ -152,11 +152,11 @@ class TonePresetsManager:
         v_scrollbar.config(command=self.content_text.yview)
 
         self.save_changes_button = ttk.Button(self.right_panel, text="Save Changes", 
-                                            command=self.save_content_changes, state='disabled')
+                                            command=self.save_content_changes, state='disabled', style="TonePresets.TButton")
         self.save_changes_button.pack(pady=(5, 0), anchor=tk.E)
 
     def create_bottom_frame(self):
-        bottom_frame = ttk.Frame(self.dialog)
+        bottom_frame = ttk.Frame(self.dialog, style="TonePresets.TFrame")
         bottom_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=10, padx=10)
 
         save_button = ctk.CTkButton(
@@ -236,18 +236,18 @@ class TonePresetsManager:
         tone_dialog.geometry(f"{dialog_width}x{dialog_height}+{position_x}+{position_y}")
         
         # Name entry
-        name_frame = ttk.Frame(tone_dialog, padding="10")
+        name_frame = ttk.Frame(tone_dialog, padding="10", style="TonePresets.TFrame")
         name_frame.pack(fill=tk.X)
-        ttk.Label(name_frame, text="Tone Name:").pack(side=tk.LEFT)
+        ttk.Label(name_frame, text="Tone Name:", style="TonePresets.TLabel").pack(side=tk.LEFT)
         name_entry = ttk.Entry(name_frame)
         name_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
 
         # Tone description
-        desc_frame = ttk.LabelFrame(tone_dialog, text="Tone Description", padding="10")
+        desc_frame = ttk.LabelFrame(tone_dialog, text="Tone Description", padding="10", style="TonePresets.TLabelframe")
         desc_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         # Create a frame for the text widget and scrollbar
-        text_frame = ttk.Frame(desc_frame)
+        text_frame = ttk.Frame(desc_frame, style="TonePresets.TFrame")
         text_frame.pack(fill=tk.BOTH, expand=True)
 
         # Create vertical scrollbar only
@@ -302,12 +302,12 @@ class TonePresetsManager:
             tone_dialog.destroy()
 
         # Buttons
-        button_frame = ttk.Frame(tone_dialog)
+        button_frame = ttk.Frame(tone_dialog, style="TonePresets.TFrame")
         button_frame.pack(fill=tk.X, pady=10, padx=10)
         ttk.Button(button_frame, text="Save", 
-                  command=save_new_tone).pack(side=tk.RIGHT, padx=5)
+                  command=save_new_tone, style="TonePresets.TButton").pack(side=tk.RIGHT, padx=5)
         ttk.Button(button_frame, text="Cancel", 
-                  command=tone_dialog.destroy).pack(side=tk.RIGHT)
+                  command=tone_dialog.destroy, style="TonePresets.TButton").pack(side=tk.RIGHT)
 
     def delete_current_tone(self):
         """Delete the currently selected tone."""
