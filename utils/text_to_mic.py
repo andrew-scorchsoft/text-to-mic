@@ -34,8 +34,8 @@ class TextToMic(tk.Tk):
         super().__init__()
 
         self.title("Scorchsoft Text to Mic")
-        self.default_geometry = "590x770"
-        self.untoggled_geometry ="590x490"
+        self.default_geometry = "590x790"
+        self.untoggled_geometry ="590x510"
         self.geometry(self.default_geometry) 
 
         self.available_models = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo"]
@@ -1302,8 +1302,8 @@ Please also make sure you read the Terms of use and licence statement before usi
             with open(str(file_path), "rb") as audio_file:
                 transcription = self.client.audio.transcriptions.create(
                     file=audio_file,
-                    model="whisper-1",
-                    response_format="verbose_json"
+                    model="gpt-4o-transcribe",
+                    response_format="json"
                 )
 
             settings = self.load_settings()
