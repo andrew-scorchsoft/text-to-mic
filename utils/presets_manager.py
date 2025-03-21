@@ -63,7 +63,8 @@ class PresetsManager:
             command=self.toggle_presets,
             style="Flat.TButton"
         )
-        self.presets_button.pack(side=tk.LEFT, padx=0, pady=2)
+        # Use grid instead of pack for the button to avoid mixing layout managers
+        self.presets_button.grid(column=0, row=0, sticky=tk.W, padx=0, pady=2)
         
         # Make presets frame expandable
         self.presets_frame.grid(column=0, row=7, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
@@ -159,7 +160,7 @@ class PresetsManager:
         """Adjust row weights to prioritize presets area expansion."""
         # Store current weights if we haven't already
         if not self.original_row_weights:
-            for i in range(7):  # Store weights for rows 0-6 (main content area)
+            for i in range(8):  # Store weights for all relevant rows (0-7)
                 self.original_row_weights[i] = self.parent.grid_rowconfigure(i, "weight")
         
         # Set all main content rows to have weight 0 (fixed height)
@@ -177,6 +178,9 @@ class PresetsManager:
         
         # Reset presets row weight
         self.parent.grid_rowconfigure(7, weight=0)
+        
+        # Ensure toggle button row is properly weighted
+        self.parent.grid_rowconfigure(6, weight=0)
 
     def setup_preset_card_styles(self, bg_color, accent_color):
         """Set up common styles for preset cards once to avoid recreating them repeatedly."""
@@ -504,30 +508,64 @@ class PresetsManager:
     def toggle_presets(self):
         """Toggle the visibility of the presets panel."""
         if self.presets_collapsed:
+            # EXPANDING presets
             self.presets_frame.grid()
             # Update button icon to down chevron while preserving text
             self.presets_button.configure(image=self.chevron_down, text=" Presets")
-            self.parent.geometry(self.parent.default_geometry)
+            
+            # Use parent's class constants for geometry instead of old properties
+            banner_hidden = self.parent.banner_var.get() if hasattr(self.parent, 'banner_var') else False
+            
+            # Calculate a width that preserves the current width if it's larger than default
+            current_width = self.parent.winfo_width()
+            width_to_use = max(current_width, self.parent.BASE_WIDTH)
+            
+            if banner_hidden:
+                self.parent.geometry(f"{width_to_use}x{self.parent.BASE_HEIGHT_NO_BANNER}")
+            else:
+                self.parent.geometry(f"{width_to_use}x{self.parent.BASE_HEIGHT_WITH_BANNER}")
+            
             # Adjust row weights to give all expansion space to presets
             self._adjust_row_weights()
+            
             # Refresh the presets display to adjust for the new window size
             self.refresh_presets_display()
         else:
+            # COLLAPSING presets
             self.presets_frame.grid_remove()
             # Update button icon to right chevron while preserving text
             self.presets_button.configure(image=self.chevron_right, text=" Presets")
             
-            # Add extra padding to the untoggled geometry to prevent button from being cut off
-            # Parse the current untoggled geometry
-            width, height = map(int, self.parent.untoggled_geometry.split('x'))
-            # Add 15 pixels to the height to prevent button cutoff
-            adjusted_height = height + 15
-            adjusted_geometry = f"{width}x{adjusted_height}"
+            # Use parent's class constants for geometry
+            banner_hidden = self.parent.banner_var.get() if hasattr(self.parent, 'banner_var') else False
             
-            self.parent.geometry(adjusted_geometry)
+            # Calculate a width that preserves the current width if it's larger than default
+            current_width = self.parent.winfo_width()
+            width_to_use = max(current_width, self.parent.BASE_WIDTH)
+            
+            # Always ensure minimum height based on constants regardless of previous manual resizing
+            if banner_hidden:
+                # Ensure the minimum height without banner
+                minimum_height = self.parent.COLLAPSED_HEIGHT_NO_BANNER
+                self.parent.geometry(f"{width_to_use}x{minimum_height}")
+            else:
+                # Ensure the minimum height with banner
+                minimum_height = self.parent.COLLAPSED_HEIGHT_WITH_BANNER
+                self.parent.geometry(f"{width_to_use}x{minimum_height}")
+            
             # Restore original row weights
             self._restore_row_weights()
+            
+            # Force re-grid of toggle button to ensure it's properly positioned
+            if hasattr(self, 'presets_button') and self.presets_button.winfo_exists():
+                self.presets_button.grid_configure(column=0, row=0, sticky=tk.W, padx=0, pady=2)
+        
+        # Update tracking of collapsed state
         self.presets_collapsed = not self.presets_collapsed
+        
+        # Update parent's tracking variable
+        if hasattr(self.parent, 'presets_collapsed'):
+            self.parent.presets_collapsed = self.presets_collapsed
 
     def save_current_text_as_preset(self):
         """Save current text to the selected category as a preset."""

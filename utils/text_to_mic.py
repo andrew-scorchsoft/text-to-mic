@@ -35,9 +35,17 @@ class TextToMic(tk.Tk):
         super().__init__()
 
         self.title("Scorchsoft Text to Mic")
-        self.default_geometry = "590x890"
-        self.untoggled_geometry ="590x610"
-        self.geometry(self.default_geometry) 
+        
+        # Fixed window dimensions for all states - DEFINED ONCE as class constants
+        # These are the ONLY values that should be used throughout the application
+        self.BASE_WIDTH = 590
+        self.BASE_HEIGHT_WITH_BANNER = 860
+        self.BASE_HEIGHT_NO_BANNER = 700
+        self.COLLAPSED_HEIGHT_WITH_BANNER = 622
+        self.COLLAPSED_HEIGHT_NO_BANNER = 510  
+        
+        # Initial window geometry
+        self.geometry(f"{self.BASE_WIDTH}x{self.BASE_HEIGHT_WITH_BANNER}")
 
         self.available_models = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo"]
         self.default_model = "gpt-4o-mini"
@@ -103,8 +111,16 @@ class TextToMic(tk.Tk):
         # Create the category variable for the dropdown
         self.category_var = tk.StringVar(value="Select Category")
 
+        # Add toggle for banner visibility before presets manager initialization
+        self.banner_var = tk.BooleanVar()
+        settings = self.load_settings()
+        self.banner_var.set(settings.get("hide_banner", False))
+
         # Create the presets manager before initializing the GUI
         self.presets_manager = PresetsManager(self)
+        
+        # Store reference to presets state 
+        self.presets_collapsed = self.presets_manager.presets_collapsed
 
         # Create menu and initialize GUI after presets manager is created
         self.create_menu()
@@ -112,6 +128,10 @@ class TextToMic(tk.Tk):
         
         # Initialize our HotkeyManager
         self.hotkey_manager = HotkeyManager(self)
+        
+        # If banner should be hidden based on settings, hide it now
+        if self.banner_var.get():
+            self.toggle_banner()
 
     def ensure_config_directory(self):
         """Ensure the config directory exists."""
@@ -160,6 +180,9 @@ class TextToMic(tk.Tk):
         help_menu.add_command(label="Terms of Use and Licence", command=self.show_terms_of_use)
         help_menu.add_command(label="Version", command=self.show_version)
         help_menu.add_command(label="Hotkey Instructions", command=self.show_hotkey_instructions)
+        
+        # Add toggle for banner visibility - use the existing banner_var from __init__
+        help_menu.add_checkbutton(label="Hide Banner", variable=self.banner_var, command=self.toggle_banner)
 
     def show_hotkey_settings(self):
         """Show the hotkey settings dialog."""
@@ -372,20 +395,27 @@ class TextToMic(tk.Tk):
 
         #Credits
         # Banner image that links to Scorchsoft
+        self.banner_frame = ttk.Frame(main_frame)
+        self.banner_frame.grid(column=0, row=7, columnspan=2, pady=(10, 10))
+        
         banner_path = self.resource_path("assets/ss-banner-550.png")
         try:
             banner_img = tk.PhotoImage(file=banner_path)
-            banner_label = tk.Label(main_frame, image=banner_img, cursor="hand2")
+            banner_label = tk.Label(self.banner_frame, image=banner_img, cursor="hand2")
             banner_label.image = banner_img  # Keep a reference to prevent garbage collection
-            banner_label.grid(column=0, row=7, columnspan=2, pady=(10, 10))
+            banner_label.pack()
             banner_label.bind("<Button-1>", lambda e: self.open_scorchsoft())
         except Exception as e:
             print(f"Error loading banner image: {e}")
             # Fallback to text if image fails to load
-            info_label = tk.Label(main_frame, text="Visit Scorchsoft.com for custom app development", 
-                                 fg="blue", cursor="hand2")
-            info_label.grid(column=0, row=7, columnspan=2, pady=(10, 10))
+            info_label = tk.Label(self.banner_frame, text="Visit Scorchsoft.com for custom app development", 
+                               fg="blue", cursor="hand2")
+            info_label.pack()
             info_label.bind("<Button-1>", lambda e: self.open_scorchsoft())
+        
+        # If the banner should be hidden based on settings, hide it now
+        if self.banner_var.get():
+            self.toggle_banner()
 
     def open_scorchsoft(self, event=None):
         webbrowser.open('https://www.scorchsoft.com')
@@ -1023,6 +1053,7 @@ Please also make sure you read the Terms of use and licence statement before usi
                 "prompt": "",
                 "auto_apply_ai_to_recording": False,
                 "current_tone": "None",
+                "hide_banner": False,
                 "hotkeys": {
                     "record_start_stop": ["ctrl", "shift", "0"],
                     "stop_recording": ["ctrl", "shift", "9"],
@@ -1083,5 +1114,93 @@ Please also make sure you read the Terms of use and licence statement before usi
     def save_tone_presets(self, tone_presets):
         """Save tone presets using the TonePresetsManager."""
         return TonePresetsManager.save_tone_presets(self, tone_presets)
+
+    # Add a new method to toggle banner visibility
+    def toggle_banner(self):
+        """Toggle the visibility of the banner image."""
+        settings = self.load_settings()
+        hide_banner = self.banner_var.get()
+        
+        # Get current presets state
+        presets_visible = hasattr(self, 'presets_manager') and not self.presets_manager.presets_collapsed
+        
+        # Calculate width that preserves current width if manually resized
+        current_width = self.winfo_width()
+        width_to_use = max(current_width, self.BASE_WIDTH)
+        
+        if hide_banner:
+            # Hide the banner
+            self.banner_frame.grid_remove()
+            
+            # Set window geometry based on presets state
+            if presets_visible:
+                # Presets visible, banner hidden
+                self.geometry(f"{width_to_use}x{self.BASE_HEIGHT_NO_BANNER}")
+            else:
+                # Presets collapsed, banner hidden
+                self.geometry(f"{width_to_use}x{self.COLLAPSED_HEIGHT_NO_BANNER}")
+        else:
+            # Show the banner
+            self.banner_frame.grid()
+            
+            # Set window geometry based on presets state
+            if presets_visible:
+                # Presets visible, banner visible
+                self.geometry(f"{width_to_use}x{self.BASE_HEIGHT_WITH_BANNER}")
+            else:
+                # Presets collapsed, banner visible
+                self.geometry(f"{width_to_use}x{self.COLLAPSED_HEIGHT_WITH_BANNER}")
+        
+        # Update the settings
+        settings["hide_banner"] = hide_banner
+        self.save_settings_to_JSON(settings)
+        
+        # Make sure presets are laid out correctly if visible
+        if presets_visible and hasattr(self, 'presets_manager'):
+            self.presets_manager.refresh_presets_display()
+        
+        # Ensure the presets button is correctly positioned using grid
+        if hasattr(self, 'presets_manager') and hasattr(self.presets_manager, 'presets_button'):
+            if self.presets_manager.presets_button.winfo_exists():
+                # Use grid (not pack) to ensure proper positioning
+                self.presets_manager.presets_button.grid_configure(column=0, row=0, sticky=tk.W, padx=0, pady=2)
+
+    def toggle_presets(self):
+        """Toggle the visibility of the presets panel."""
+        if hasattr(self, 'presets_manager'):
+            # Toggle presets via presets manager
+            self.presets_manager.toggle_presets()
+            
+            # Update our local tracking of presets state
+            self.presets_collapsed = self.presets_manager.presets_collapsed
+            
+            # Get banner visibility state
+            banner_hidden = self.banner_var.get()
+            
+            # Calculate a width that preserves the current width if it's larger than default
+            current_width = self.winfo_width()
+            width_to_use = max(current_width, self.BASE_WIDTH)
+            
+            # Set window geometry based on both states
+            if self.presets_collapsed:
+                # Presets collapsed - ensure minimum height with current width
+                if banner_hidden:
+                    # Banner hidden, presets collapsed
+                    self.geometry(f"{width_to_use}x{self.COLLAPSED_HEIGHT_NO_BANNER}")
+                else:
+                    # Banner visible, presets collapsed
+                    self.geometry(f"{width_to_use}x{self.COLLAPSED_HEIGHT_WITH_BANNER}")
+            else:
+                # Presets expanded - use full height with current width
+                if banner_hidden:
+                    # Banner hidden, presets expanded
+                    self.geometry(f"{width_to_use}x{self.BASE_HEIGHT_NO_BANNER}")
+                else:
+                    # Banner visible, presets expanded
+                    self.geometry(f"{width_to_use}x{self.BASE_HEIGHT_WITH_BANNER}")
+            
+            # Refresh presets display if they're visible
+            if not self.presets_collapsed:
+                self.presets_manager.refresh_presets_display()
 
 
