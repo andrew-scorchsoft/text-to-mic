@@ -110,24 +110,35 @@ class HotkeyManager:
         messagebox.showinfo("Settings Updated", "Your hotkey settings have been saved successfully.")
     
     @staticmethod
-    def show_hotkey_instructions(app):
-        """Show hotkey instructions."""
-        instruction_window = tk.Toplevel(app)
+    def show_hotkey_instructions(parent):
+        """Show instructions for using hotkeys."""
+        instruction_window = tk.Toplevel(parent)
         instruction_window.title("Hotkey Instructions")
-        instruction_window.geometry("400x300")  # Width x Height
+        instruction_window.geometry("600x400")  # Width x Height
 
-        instructions = """How to use Hotkeys
-ctrl+shift+0
-This starts a recording, then converts to text and plays when you press this hotkey again.
+        settings = parent.load_settings()
+        record_shortcut = "+".join(filter(None, settings["hotkeys"]["record_start_stop"]))
+        play_shortcut = "+".join(filter(None, settings["hotkeys"]["play_last_audio"]))
+        stop_shortcut = "+".join(filter(None, settings["hotkeys"]["stop_recording"]))
 
-ctrl+shift+9
-If you are recording, you can press this hotkey to stop recording without playing
+        instructions = f"""Available Hotkeys:
 
-ctrl+shift+8
-This replays the last audio clip played
+1. {record_shortcut} - Start/Stop Recording
+   This hotkey toggles recording from your selected input device.
 
-        """
-        tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=380).pack(padx=10, pady=10)
+2. {play_shortcut} - Play Last Audio
+   Play the most recently generated audio.
+
+3. {stop_shortcut} - Stop Recording
+   Immediately stops any active recording.
+
+These hotkeys work globally across your system, even when the app is minimized.
+You can customize these hotkeys in Settings → Hotkey Settings.
+
+You can also access tone presets from Settings → Manage Tone Presets to modify how your text is spoken.
+"""
+        
+        tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=580).pack(padx=10, pady=10)
         
         # Add a button to close the window
         ttk.Button(instruction_window, text="Close", command=instruction_window.destroy).pack(pady=(10, 0)) 

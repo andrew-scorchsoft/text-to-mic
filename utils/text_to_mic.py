@@ -21,6 +21,7 @@ from pydub import AudioSegment
 from utils.api_key_manager import APIKeyManager
 from utils.hotkey_manager import HotkeyManager
 from utils.resource_utils import ResourceUtils
+from utils.tone_presets_manager import TonePresetsManager
 
 # Modify the load environment variables to load from config/.env
 def load_env_file():
@@ -33,7 +34,8 @@ class TextToMic(tk.Tk):
         super().__init__()
 
         self.title("Scorchsoft Text to Mic")
-        self.default_geometry = "590x750"
+        self.default_geometry = "590x770"
+        self.untoggled_geometry ="590x490"
         self.geometry(self.default_geometry) 
 
         self.available_models = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo"]
@@ -95,6 +97,10 @@ class TextToMic(tk.Tk):
         self.available_devices = self.get_audio_devices()  # Load audio devices
         self.available_input_devices = self.get_input_devices() # Load input devices
 
+        # Load tone presets
+        self.tone_presets = TonePresetsManager.load_tone_presets(self)
+        self.current_tone_name = self.load_current_tone_from_settings()
+
         self.create_menu()
         self.initialize_gui()
         
@@ -128,7 +134,7 @@ class TextToMic(tk.Tk):
         settings_menu.add_command(label="Change API Key", command=self.change_api_key)
         settings_menu.add_command(label="ChatGPT Manipulation", command=self.chat_gpt_settings)
         settings_menu.add_command(label="Hotkey Settings", command=self.show_hotkey_settings)  
-
+        settings_menu.add_command(label="Manage Tone Presets", command=self.show_tone_presets_manager)
 
         # Playback menu
         playback_menu = Menu(self.menubar, tearoff=0)
@@ -234,32 +240,40 @@ class TextToMic(tk.Tk):
         voice_menu = ttk.OptionMenu(main_frame, self.voice_var,'fable', *voices)
         voice_menu.grid(column=1, row=0, sticky=tk.W)
 
+        # Tone Preset Selection
+        self.tone_var = tk.StringVar(value=self.current_tone_name)
+        ttk.Label(main_frame, text="Tone Preset").grid(column=0, row=1, sticky=tk.W, pady=(5, 10))
+        tone_options = ["None"] + list(self.tone_presets.keys())
+        self.tone_menu = ttk.OptionMenu(main_frame, self.tone_var, self.tone_var.get(), *tone_options, 
+                                      command=self.on_tone_change)
+        self.tone_menu.grid(column=1, row=1, sticky=tk.W)
+
         # Microphone Selection Setup
-        ttk.Label(main_frame, text="Input Device (optional):").grid(column=0, row=1, sticky=tk.W, pady=(5, 10))  # Padding added
+        ttk.Label(main_frame, text="Input Device (optional):").grid(column=0, row=2, sticky=tk.W, pady=(5, 10))  # Padding added
         input_device_menu = ttk.OptionMenu(main_frame, self.input_device_index, "None", *self.available_input_devices.keys())
-        input_device_menu.grid(column=1, row=1, sticky=tk.W)
+        input_device_menu.grid(column=1, row=2, sticky=tk.W)
 
         # Select Primary audio device
-        ttk.Label(main_frame, text="Primary Playback Device:").grid(column=0, row=2, sticky=tk.W, pady=(10, 10))  # Padding added
+        ttk.Label(main_frame, text="Primary Playback Device:").grid(column=0, row=3, sticky=tk.W, pady=(10, 10))  # Padding added
         primary_device_menu = ttk.OptionMenu(main_frame, self.device_index, *self.available_devices.keys())
-        primary_device_menu.grid(column=1, row=2, sticky=tk.W)
+        primary_device_menu.grid(column=1, row=3, sticky=tk.W)
 
         # Select Secondary audio device
-        ttk.Label(main_frame, text="Secondary Playback Device (optional):").grid(column=0, row=3, sticky=tk.W, pady=(5, 10))  # Padding added
+        ttk.Label(main_frame, text="Secondary Playback Device (optional):").grid(column=0, row=4, sticky=tk.W, pady=(5, 10))  # Padding added
         secondary_device_menu = ttk.OptionMenu(main_frame, self.device_index_2, "None", *self.available_devices.keys())
-        secondary_device_menu.grid(column=1, row=3, sticky=tk.W)
+        secondary_device_menu.grid(column=1, row=4, sticky=tk.W)
 
 
         spacer = ttk.Frame(main_frame, height=20)  # Adjust height as needed
-        spacer.grid(column=0, row=4, columnspan=2)  # Place spacer in the grid
+        spacer.grid(column=0, row=5, columnspan=2)  # Place spacer in the grid
 
 
         # Text to Read Label
-        ttk.Label(main_frame, text="Text to Read:").grid(column=0, row=5, sticky=tk.W, pady=(10, 0))
+        ttk.Label(main_frame, text="Text to Read:").grid(column=0, row=6, sticky=tk.W, pady=(10, 0))
 
         # Create a frame to contain the dropdown and save button
         save_frame = ttk.Frame(main_frame)
-        save_frame.grid(column=1, row=5, sticky=tk.E, padx=(5, 0), pady=(5, 0))  # Align to the top right
+        save_frame.grid(column=1, row=6, sticky=tk.E, padx=(5, 0), pady=(5, 0))  # Align to the top right
 
         # Preset Category dropdown
         self.category_var = tk.StringVar(value="Select Category")
@@ -278,11 +292,11 @@ class TextToMic(tk.Tk):
         bg_color = self.style.lookup('TFrame', 'background')
         text_color = self.style.lookup('TLabel', 'foreground')
         self.text_input.configure(bg=bg_color, fg=text_color, insertbackground=text_color)
-        self.text_input.grid(column=0, row=6, columnspan=2, pady=(0, 20), sticky="nsew")  # Fill available width
+        self.text_input.grid(column=0, row=7, columnspan=2, pady=(0, 20), sticky="nsew")  # Fill available width
 
         # Create a frame for the buttons to allow for better styling
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(column=0, row=7, columnspan=2, sticky="ew", pady=(0, 20))
+        button_frame.grid(column=0, row=8, columnspan=2, sticky="ew", pady=(0, 20))
         button_frame.columnconfigure(0, weight=1)
         button_frame.columnconfigure(1, weight=1)
 
@@ -328,8 +342,11 @@ class TextToMic(tk.Tk):
 
         #Credits
         info_label = tk.Label(main_frame, text="Enjoying this free tool? Thank us by referring a business friend to Scorchsoft.com", fg="blue", cursor="hand2")
-        info_label.grid(column=0, row=10, columnspan=2, pady=(0, 0))
+        info_label.grid(column=0, row=9, columnspan=2, pady=(0, 0))
         info_label.bind("<Button-1>", lambda e: self.open_scorchsoft())
+        
+        desc_label = tk.Label(main_frame, text="We build Apps, AI agents, voice/speech apps, and autonomous tools that work with or without human interaction", wraplength=500)
+        desc_label.grid(column=0, row=10, columnspan=2, pady=(5, 0))
 
 
 
@@ -441,7 +458,7 @@ class TextToMic(tk.Tk):
     def show_instructions(self):
         instruction_window = tk.Toplevel(self)
         instruction_window.title("How to Use")
-        instruction_window.geometry("600x680")  # Width x Height
+        instruction_window.geometry("600x720")  # Width x Height
 
         instructions = """How to Use Scorchsoft Text to Mic:
 
@@ -459,15 +476,17 @@ OpenAI pricing: openai.com/pricing
 
 3. Choose a voice that you prefer for the speech synthesis.
 
-4. Select a playback device. I recommend you select one device to be your headphones, and the other the virtuall microphone installed above (Which is usually labelled "Cable Input (VB-Audio))"
+4. (Optional) Select a Tone Preset to modify how the text is spoken. You can use the built-in presets or create your own under 'Settings > Manage Tone Presets'. Tone presets add special instructions to make the voice sound cheerful, angry, like a bedtime story, etc.
 
-3. Enter the text in the provided text area that you want to convert to speech.
+5. Select a playback device. I recommend you select one device to be your headphones, and the other the virtuall microphone installed above (Which is usually labelled "Cable Input (VB-Audio))"
 
-4. Click 'Submit' to hear the spoken version of your text.
+6. Enter the text in the provided text area that you want to convert to speech.
 
-5. The 'Play Last Audio' button can be used to replay the last generated speech output.
+7. Click 'Play Audio' to hear the spoken version of your text.
 
-6. You can change the API key at any time under the 'Settings' menu.
+8. The 'Record Mic' button can be used to record from your microphone and transcribe it to text, which can then be played back.
+
+9. You can change the API key at any time under the 'Settings' menu.
 
 This tool was brought to you by Scorchsoft - We build custom apps to your requirements. Please contact us if you have a requirement for a custom app project.
 
@@ -649,6 +668,16 @@ Please also make sure you read the Terms of use and licence statement before usi
         
         selected_voice = self.voice_var.get()
         
+        # Check if a tone preset is selected and add it to the text
+        selected_tone_name = self.tone_var.get()
+        
+        # Get the actual tone instructions from the tone_presets dictionary
+        tone_instructions = None
+        if selected_tone_name != "None" and selected_tone_name in self.tone_presets:
+            tone_instructions = self.tone_presets[selected_tone_name]
+        else:
+            tone_instructions = ""  # Empty string if "None" or not found
+        
         # Convert device names to indices
         primary_index = self.available_devices.get(self.device_index.get(), None)
         secondary_index = self.available_devices.get(self.device_index_2.get(), None) if self.device_index_2.get() != "None" else None
@@ -658,13 +687,15 @@ Please also make sure you read the Terms of use and licence statement before usi
             return
         
         print(f"Primary Index: {primary_index}, Secondary Index: {secondary_index}")
-
+        print(f"Selected Tone: {selected_tone_name}")
+        print(f"Tone Instructions: {tone_instructions}")
         try:
 
             response = self.client.audio.speech.create(
-                model="tts-1",
+                model="gpt-4o-mini-tts",
                 voice=selected_voice,
                 input=text,
+                instructions=tone_instructions,
                 response_format='wav'
             )
 
@@ -1086,7 +1117,7 @@ Please also make sure you read the Terms of use and licence statement before usi
         else:
             self.presets_frame.grid_remove()
             self.presets_button.config(text="▶ Presets")
-            self.geometry("590x460") 
+            self.geometry(self.untoggled_geometry) 
         self.presets_collapsed = not self.presets_collapsed
 
 
@@ -1316,6 +1347,7 @@ Please also make sure you read the Terms of use and licence statement before usi
                 "model": self.default_model,
                 "prompt": "",
                 "auto_apply_ai_to_recording": False,
+                "current_tone": "None",
                 "hotkeys": {
                     "record_start_stop": ["ctrl", "shift", "0"],
                     "stop_recording": ["ctrl", "shift", "9"],
@@ -1337,5 +1369,44 @@ Please also make sure you read the Terms of use and licence statement before usi
             return f"{mac_path}/{filename}"
         else:
             return filename  # Default to current directory for non-macOS systems
+
+    # Methods for tone preset management
+    def show_tone_presets_manager(self):
+        """Show the tone presets manager dialog."""
+        TonePresetsManager(self)
+    
+    def load_current_tone_from_settings(self):
+        """Load the current tone preset from settings."""
+        settings = self.load_settings()
+        return settings.get("current_tone", "None")
+    
+    def save_current_tone_to_settings(self):
+        """Save the current tone preset to settings."""
+        settings = self.load_settings()
+        settings["current_tone"] = self.current_tone_name
+        self.save_settings_to_JSON(settings)
+    
+    def on_tone_change(self, event):
+        """Handle tone selection change in the dropdown."""
+        self.current_tone_name = self.tone_var.get()
+        self.save_current_tone_to_settings()
+    
+    def update_tone_selection(self):
+        """Update the tone selection dropdown with current presets."""
+        # Update the variable
+        self.tone_var.set(self.current_tone_name)
+        
+        # Rebuild the dropdown menu
+        menu = self.tone_menu["menu"]
+        menu.delete(0, "end")
+        
+        tone_options = ["None"] + list(self.tone_presets.keys())
+        for tone in tone_options:
+            menu.add_command(label=tone, 
+                            command=lambda value=tone: self.tone_var.set(value))
+    
+    def save_tone_presets(self, tone_presets):
+        """Save tone presets using the TonePresetsManager."""
+        return TonePresetsManager.save_tone_presets(self, tone_presets)
 
 
