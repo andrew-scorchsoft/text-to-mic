@@ -195,6 +195,7 @@ class TextToMic(tk.Tk):
         settings_menu.add_command(label="AI Copy Editing", command=self.show_ai_editor_settings)
         settings_menu.add_command(label="Hotkey Settings", command=self.show_hotkey_settings)  
         settings_menu.add_command(label="Manage Tone Presets", command=self.show_tone_presets_manager)
+        settings_menu.add_checkbutton(label="Auto Check for Updates", variable=self.auto_check_version, command=self.toggle_auto_version_check)
 
         # Playback menu
         playback_menu = Menu(self.menubar, tearoff=0)
@@ -210,13 +211,11 @@ class TextToMic(tk.Tk):
         # Help menu
         help_menu = Menu(self.menubar, tearoff=0)
         self.menubar.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label="Check Version", command=self.check_version)
+        
         help_menu.add_command(label="How to Use", command=self.show_instructions)
         help_menu.add_command(label="Terms of Use and Licence", command=self.show_terms_of_use)
-        help_menu.add_command(label="Check Version", command=self.check_version)
         help_menu.add_command(label="Hotkey Instructions", command=self.show_hotkey_instructions)
-        
-        # Add toggle for automatic version checking
-        help_menu.add_checkbutton(label="Auto Check for Updates", variable=self.auto_check_version, command=self.toggle_auto_version_check)
         
         # Add toggle for banner visibility - use the existing banner_var from __init__
         help_menu.add_checkbutton(label="Hide Banner", variable=self.banner_var, command=self.toggle_banner)
@@ -1192,6 +1191,11 @@ class TextToMic(tk.Tk):
     # Add a new method to toggle banner visibility
     def toggle_banner(self):
         """Toggle the visibility of the banner image."""
+        # Store notification state before changes
+        had_notification = False
+        if hasattr(self, 'version_checker') and self.version_checker.notification_visible:
+            had_notification = True
+        
         settings = self.load_settings()
         hide_banner = self.banner_var.get()
         
@@ -1239,13 +1243,18 @@ class TextToMic(tk.Tk):
                 # Use grid (not pack) to ensure proper positioning
                 self.presets_manager.presets_button.grid_configure(column=0, row=0, sticky=tk.W, padx=0, pady=2)
 
-        # If we have a version notification visible, ensure it remains at the top
-        if hasattr(self, 'version_checker') and self.version_checker.notification_visible:
-            self.version_checker.notification_frame.grid(row=0, column=0, sticky="ew")
-            self.main_frame.grid(row=1, column=0, sticky="nsew")
+        # If we had a notification, make sure it's correctly positioned after layout changes
+        if had_notification:
+            # Need to schedule this after all geometry changes are complete
+            self.after(100, self._reposition_version_notification)
 
     def toggle_presets(self):
         """Toggle the visibility of the presets panel."""
+        # Store notification state before changes
+        had_notification = False
+        if hasattr(self, 'version_checker') and self.version_checker.notification_visible:
+            had_notification = True
+        
         if hasattr(self, 'presets_manager'):
             # Toggle presets via presets manager
             self.presets_manager.toggle_presets()
@@ -1282,10 +1291,10 @@ class TextToMic(tk.Tk):
             if not self.presets_collapsed:
                 self.presets_manager.refresh_presets_display()
 
-            # If we have a version notification visible, ensure it remains at the top
-            if hasattr(self, 'version_checker') and self.version_checker.notification_visible:
-                self.version_checker.notification_frame.grid(row=0, column=0, sticky="ew")
-                self.main_frame.grid(row=1, column=0, sticky="nsew")
+            # If we had a notification, make sure it's correctly positioned after layout changes
+            if had_notification:
+                # Need to schedule this after all geometry changes are complete
+                self.after(100, self._reposition_version_notification)
 
     def update_buttons_for_playback(self, is_playing):
         """Update button text based on playback state."""
@@ -1361,5 +1370,14 @@ class TextToMic(tk.Tk):
         settings = self.load_settings()
         settings["auto_check_version"] = self.auto_check_version.get()
         self.save_settings_to_JSON(settings)
+
+    def _reposition_version_notification(self):
+        """Helper method to reposition version notification after layout changes"""
+        if hasattr(self, 'version_checker') and self.version_checker.notification_visible:
+            if hasattr(self.version_checker, 'notification_window') and self.version_checker.notification_window:
+                # First ensure the notification window is visible
+                self.version_checker.notification_window.deiconify()
+                # Then reposition it
+                self.version_checker._reposition_notification()
 
 
