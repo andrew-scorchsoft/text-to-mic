@@ -35,7 +35,20 @@ class TextToMic(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        self.title("Scorchsoft Text to Mic")
+        self.version = "1.3.5"
+        self.title(f"Text to Mic by Scorchsoft.com - v{self.version}")
+        
+        
+        # Add these lines to set up the window icon
+        icon_path = self.resource_path("assets/logo-circle-32.png")
+        self.iconphoto(False, tk.PhotoImage(file=icon_path))
+        
+        # For Windows compatibility, also set the iconbitmap
+        try:
+            self.iconbitmap(self.resource_path("assets/icon.ico"))
+        except:
+            # This might fail on Mac, which is fine as we have iconphoto as backup
+            pass
         
         # Fixed window dimensions for all states - DEFINED ONCE as class constants
         # These are the ONLY values that should be used throughout the application
@@ -144,7 +157,7 @@ class TextToMic(tk.Tk):
         instruction_window.title("App Version")
         instruction_window.geometry("300x150")  # Width x Height
 
-        instructions = """Version 1.3.5\n\n App by Scorchsoft.com"""
+        instructions = f"""Version {self.version}\n\n App by Scorchsoft.com"""
         
         tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=280).pack(padx=10, pady=10)
         
