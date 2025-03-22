@@ -40,6 +40,7 @@ Customise keyboard shortcuts:
 ![Keyboard shortcut management](images/keyboard-shortcuts-v1-4-0.png)
 
 Enable AI Copyediting
+
 ![AI Copyediting](images/ai-copyediting-v1-4-0.png)
 
 ## Running the GUI version
