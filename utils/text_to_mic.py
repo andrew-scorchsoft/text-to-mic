@@ -229,20 +229,38 @@ class TextToMic(tk.Tk):
         return ResourceUtils.resource_path(relative_path)
 
     def initialize_gui(self):
+        # Get saved settings
+        settings = self.load_settings()
 
         self.input_device_index = tk.StringVar(self)
         self.device_index = tk.StringVar(self)
         self.device_index_2 = tk.StringVar(self)
 
-        self.input_device_index.set("Default")
-        self.device_index.set("Select Device")
-        self.device_index_2.set("None")
-
-        # Fetching available devices (no longer needed here?)
-        #available_devices = self.get_audio_devices()
-        #available_input_devices = self.get_input_devices()
-        #device_names = list(self.available_devices.keys())
-        #input_device_names = list(self.available_input_devices.keys())
+        # Set default values
+        default_input = "Default"
+        default_output = "Select Device"
+        default_secondary = "None"
+        
+        # Get saved device names from settings
+        saved_input_device = settings.get("input_device", default_input)
+        saved_primary_device = settings.get("primary_device", default_output)
+        saved_secondary_device = settings.get("secondary_device", default_secondary)
+        
+        # Validate that saved devices are still available, otherwise use defaults
+        if saved_input_device in self.available_input_devices:
+            self.input_device_index.set(saved_input_device)
+        else:
+            self.input_device_index.set(default_input)
+        
+        if saved_primary_device in self.available_devices:
+            self.device_index.set(saved_primary_device)
+        else:
+            self.device_index.set(default_output)
+        
+        if saved_secondary_device in self.available_devices or saved_secondary_device == "None":
+            self.device_index_2.set(saved_secondary_device)
+        else:
+            self.device_index_2.set(default_secondary)
 
         main_frame = ttk.Frame(self, padding="20")
         main_frame.grid(column=0, row=0, sticky=(tk.W, tk.E, tk.N, tk.S))
@@ -316,17 +334,23 @@ class TextToMic(tk.Tk):
         ttk.Label(device_frame, text="Device Settings", font=("Arial", 10, "bold")).grid(column=0, row=0, sticky=tk.W, pady=(0, 10), columnspan=2)
 
         ttk.Label(device_frame, text="Input Device (optional):").grid(column=0, row=1, sticky=tk.W, pady=(0, 5))
-        input_device_menu = ttk.OptionMenu(device_frame, self.input_device_index, "None", *self.available_input_devices.keys())
+        input_device_menu = ttk.OptionMenu(device_frame, self.input_device_index, self.input_device_index.get(), 
+                                          *self.available_input_devices.keys(), 
+                                          command=self.on_input_device_change)
         input_device_menu.grid(column=1, row=1, sticky=tk.E, pady=(0, 5))
         input_device_menu.config(width=dropdown_width, style='Compact.TMenubutton')
 
         ttk.Label(device_frame, text="Primary Playback Device:").grid(column=0, row=2, sticky=tk.W, pady=(0, 5))
-        primary_device_menu = ttk.OptionMenu(device_frame, self.device_index, *self.available_devices.keys())
+        primary_device_menu = ttk.OptionMenu(device_frame, self.device_index, self.device_index.get(), 
+                                            *self.available_devices.keys(),
+                                            command=self.on_primary_device_change)
         primary_device_menu.grid(column=1, row=2, sticky=tk.E, pady=(0, 5))
         primary_device_menu.config(width=dropdown_width, style='Compact.TMenubutton')
 
         ttk.Label(device_frame, text="Secondary Playback Device (optional):").grid(column=0, row=3, sticky=tk.W, pady=(0, 5))
-        secondary_device_menu = ttk.OptionMenu(device_frame, self.device_index_2, "None", *self.available_devices.keys())
+        secondary_device_menu = ttk.OptionMenu(device_frame, self.device_index_2, self.device_index_2.get(), 
+                                              "None", *self.available_devices.keys(),
+                                              command=self.on_secondary_device_change)
         secondary_device_menu.grid(column=1, row=3, sticky=tk.E, pady=(0, 5))
         secondary_device_menu.config(width=dropdown_width, style='Compact.TMenubutton')
 
@@ -1193,32 +1217,60 @@ Please also make sure you read the Terms of use and licence statement before usi
 
     def load_settings(self):
         settings_file = self.get_settings_file_path("settings.json")
+        
+        # Define default settings structure
+        default_settings = {
+            "chat_gpt_completion": False,
+            "model": self.default_model,
+            "prompt": "",
+            "auto_apply_ai_to_recording": False,
+            "current_tone": "None",
+            "hide_banner": False,
+            "input_device": "Default",   # Add default for input device
+            "primary_device": "Select Device",  # Also add for primary device
+            "secondary_device": "None",  # Also add for secondary device
+            "hotkeys": {
+                "record_start_stop": ["ctrl", "shift", "0"],
+                "stop_recording": ["ctrl", "shift", "9"],
+                "play_last_audio": ["ctrl", "shift", "8"],
+                "cancel_operation": ["ctrl", "shift", "1"]
+            },
+            "max_tokens": 750
+        }
+        
         try:
+            # Try to load existing settings
             with open(settings_file, "r") as f:
                 settings = json.load(f)
                 
-                # Check if the new cancel_operation hotkey exists
-                if "hotkeys" in settings and "cancel_operation" not in settings["hotkeys"]:
-                    settings["hotkeys"]["cancel_operation"] = ["ctrl", "shift", "1"]
-                    self.save_settings_to_JSON(settings)
+            # Check if settings need to be updated with new defaults
+            settings_updated = False
+            
+            # Recursively update nested dictionaries with missing keys
+            def update_missing_settings(existing, defaults):
+                nonlocal settings_updated
+                for key, value in defaults.items():
+                    if key not in existing:
+                        existing[key] = value
+                        settings_updated = True
+                    elif isinstance(value, dict) and isinstance(existing[key], dict):
+                        # Recursively update nested dictionaries
+                        update_missing_settings(existing[key], value)
+                return existing
+            
+            # Update settings with any missing values
+            settings = update_missing_settings(settings, default_settings)
+            
+            # Save if any settings were updated
+            if settings_updated:
+                self.save_settings_to_JSON(settings)
+                print("Settings file updated with new default values")
                 
         except FileNotFoundError:
-            # Default settings
-            settings = {
-                "chat_gpt_completion": False,
-                "model": self.default_model,
-                "prompt": "",
-                "auto_apply_ai_to_recording": False,
-                "current_tone": "None",
-                "hide_banner": False,
-                "hotkeys": {
-                    "record_start_stop": ["ctrl", "shift", "0"],
-                    "stop_recording": ["ctrl", "shift", "9"],
-                    "play_last_audio": ["ctrl", "shift", "8"],
-                    "cancel_operation": ["ctrl", "shift", "1"]
-                }
-            }
+            # Create new settings file with defaults if it doesn't exist
+            settings = default_settings
             self.save_settings_to_JSON(settings)
+        
         return settings
 
     def save_settings_to_JSON(self, settings):
@@ -1403,5 +1455,20 @@ Please also make sure you read the Terms of use and licence statement before usi
         else:
             # Otherwise, submit text as before
             self.submit_text()
+
+    def on_input_device_change(self, event):
+        """Handle changes to the input device dropdown."""
+        selected_device = event.widget.cget("value")
+        self.input_device_index.set(selected_device)
+
+    def on_primary_device_change(self, event):
+        """Handle changes to the primary device dropdown."""
+        selected_device = event.widget.cget("value")
+        self.device_index.set(selected_device)
+
+    def on_secondary_device_change(self, event):
+        """Handle changes to the secondary device dropdown."""
+        selected_device = event.widget.cget("value")
+        self.device_index_2.set(selected_device)
 
 
