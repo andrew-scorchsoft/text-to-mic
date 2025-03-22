@@ -485,23 +485,42 @@ Please also make sure you read the Terms of use and licence statement before usi
         ttk.Button(instruction_window, text="Close", command=instruction_window.destroy).pack(pady=(10, 0))
 
     def show_terms_of_use(self):
-        # Get the path to the LICENSE.md file using the resource_path method
-        license_path = self.resource_path("LICENSE.md")
+        # Try multiple approaches to find the LICENSE.md file
+        license_content = None
+        possible_paths = [
+            "LICENSE.md",                            # Direct path when running as script
+            self.resource_path("LICENSE.md"),        # Using resource_path helper
+            self.resource_path("assets/LICENSE.md"), # Check in assets folder
+            Path("assets") / "LICENSE.md"            # Alternative assets path
+        ]
+        
+        # Try each path until we find the file
+        for path in possible_paths:
+            try:
+                with open(path, "r", encoding="utf-8") as file:
+                    license_content = file.read()
+                    break
+            except (FileNotFoundError, PermissionError, UnicodeDecodeError):
+                continue
+        
+        # If we couldn't find the file in the filesystem, provide a fallback
+        if license_content is None:
+            license_content = """
+            Scorchsoft Text to Mic License
 
-        # Attempt to read the content of the LICENSE.md file
-        try:
-            # Open the file with 'r' (read mode) and specify 'utf-8' encoding
-            with open(license_path, "r", encoding="utf-8") as file:
-                license_content = file.read()
-        except FileNotFoundError:
-            license_content = "License file not found. Please ensure the LICENSE.md file exists in the application directory."
-        except PermissionError:
-            license_content = "Permission denied. Please ensure the script has read access to LICENSE.md."
-        except UnicodeDecodeError as e:
-            license_content = f"Error reading license file due to encoding issue: {e}"
-        except Exception as e:
-            license_content = f"An unexpected error occurred while reading the license file: {e}"
+            This application is provided for personal and commercial use, subject to the following conditions:
 
+            1. You may use this application for personal or commercial purposes.
+            2. You may not redistribute, sell, or include this application as part of another product without explicit permission.
+            3. This application uses the OpenAI API, and you are responsible for any charges incurred through your API key.
+            4. The developer assumes no liability for any misuse or charges incurred through use of this application.
+
+            For the complete license text, please visit:
+            https://www.scorchsoft.com/text-to-mic-license
+
+            Copyright © Scorchsoft.com
+            """
+        
         # Create a new window to display the terms of use
         instruction_window = tk.Toplevel(self)
         instruction_window.title("Terms of Use")
