@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
+from utils.settings_manager import SettingsManager
 
 class AIEditorManager:
     """
@@ -90,9 +91,9 @@ class AIEditorManager:
 
     def save_settings(self, settings):
         """Save AI copy editing settings and update the UI"""
-        self.app.save_settings_to_JSON(settings)
+        SettingsManager.update_settings(settings)
+        
         messagebox.showinfo("Settings Updated", "Your settings have been saved successfully.")
-        self.app.load_settings()  # Refresh settings if needed elsewhere
         
         # Update the status indicator on the main screen with more specific information
         self.update_status_display()

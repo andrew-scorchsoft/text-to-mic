@@ -25,6 +25,7 @@ from utils.resource_utils import ResourceUtils
 from utils.tone_presets_manager import TonePresetsManager
 from utils.presets_manager import PresetsManager
 from utils.ai_editor_manager import AIEditorManager
+from utils.settings_manager import SettingsManager
 
 # Modify the load environment variables to load from config/.env
 def load_env_file():
@@ -1168,75 +1169,20 @@ Please also make sure you read the Terms of use and licence statement before usi
             print(f"Transcription error: An error occurred during transcription: {str(e)}")
 
     def load_settings(self):
-        settings_file = self.get_settings_file_path("settings.json")
-        
-        # Define default settings structure
-        default_settings = {
-            "chat_gpt_completion": False,
-            "model": self.default_model,
-            "prompt": "",
-            "auto_apply_ai_to_recording": False,
-            "current_tone": "None",
-            "hide_banner": False,
-            "input_device": "Default",   # Add default for input device
-            "primary_device": "Select Device",  # Also add for primary device
-            "secondary_device": "None",  # Also add for secondary device
-            "hotkeys": {
-                "record_start_stop": ["ctrl", "shift", "0"],
-                "stop_recording": ["ctrl", "shift", "9"],
-                "play_last_audio": ["ctrl", "shift", "8"],
-                "cancel_operation": ["ctrl", "shift", "1"]
-            },
-            "max_tokens": 750
-        }
-        
-        try:
-            # Try to load existing settings
-            with open(settings_file, "r") as f:
-                settings = json.load(f)
-                
-            # Check if settings need to be updated with new defaults
-            settings_updated = False
-            
-            # Recursively update nested dictionaries with missing keys
-            def update_missing_settings(existing, defaults):
-                nonlocal settings_updated
-                for key, value in defaults.items():
-                    if key not in existing:
-                        existing[key] = value
-                        settings_updated = True
-                    elif isinstance(value, dict) and isinstance(existing[key], dict):
-                        # Recursively update nested dictionaries
-                        update_missing_settings(existing[key], value)
-                return existing
-            
-            # Update settings with any missing values
-            settings = update_missing_settings(settings, default_settings)
-            
-            # Save if any settings were updated
-            if settings_updated:
-                self.save_settings_to_JSON(settings)
-                print("Settings file updated with new default values")
-                
-        except FileNotFoundError:
-            # Create new settings file with defaults if it doesn't exist
-            settings = default_settings
-            self.save_settings_to_JSON(settings)
-        
-        return settings
+        """Load settings using the SettingsManager."""
+        return SettingsManager.load_settings()
 
     def save_settings_to_JSON(self, settings):
-        settings_file = self.get_settings_file_path("settings.json")
-        
-        with open(settings_file, "w") as f:
-            json.dump(settings, f)
+        """Save complete settings using the SettingsManager."""
+        SettingsManager.save_settings(settings)
+
+    def update_settings(self, partial_settings):
+        """Update specific settings without overwriting others."""
+        return SettingsManager.update_settings(partial_settings)
 
     def get_settings_file_path(self, filename):
-        if platform.system() == 'Darwin':  # Check if the OS is macOS
-            mac_path = APIKeyManager.get_app_support_path_mac()
-            return f"{mac_path}/{filename}"
-        else:
-            return filename  # Default to current directory for non-macOS systems
+        """Get the settings file path using SettingsManager."""
+        return SettingsManager.get_settings_file_path(filename)
 
     # Methods for tone preset management
     def show_tone_presets_manager(self):
