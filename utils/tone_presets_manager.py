@@ -15,6 +15,9 @@ class TonePresetsManager:
         self.dialog.transient(parent)
         self.dialog.grab_set()
         
+        # Set the dialog background color
+        self.dialog.configure(background="#f0f0f0")
+        
         # Center the dialog on the screen
         self.center_dialog()
         
@@ -32,8 +35,16 @@ class TonePresetsManager:
         style = ttk.Style()
         
         # Use namespaced styles with "TonePresets." prefix to avoid affecting global styles
-        style.configure("TonePresets.TLabelframe", borderwidth=1, relief="solid", background="#ffffff")
-        style.configure("TonePresets.TLabelframe.Label", foreground="#333333", background="#ffffff", font=("Arial", 10))
+        # Base frame style that will be used by all frames
+        style.configure("TonePresets.TFrame", background="#f0f0f0")
+        
+        # Update labelframe style with bold and centered title
+        style.configure("TonePresets.TLabelframe", borderwidth=0, relief="flat", background="#f0f0f0")
+        style.configure("TonePresets.TLabelframe.Label", 
+                        foreground="#333333", 
+                        background="#f0f0f0", 
+                        font=("Arial", 10, "bold"),
+                        anchor="center")
         
         # Namespaced button style
         style.configure("TonePresets.TButton", foreground="#333333", background="#f0f0f0", font=("Arial", 10))
@@ -41,7 +52,7 @@ class TonePresetsManager:
                  background=[("active", "#e0e0e0"), ("pressed", "#d0d0d0")])
         
         # Namespaced label style
-        style.configure("TonePresets.TLabel", foreground="#333333", background="#ffffff", font=("Arial", 10))
+        style.configure("TonePresets.TLabel", foreground="#333333", background="#f0f0f0", font=("Arial", 10))
         
         # Listbox and Text widget styling will be applied directly to those widgets
 
@@ -80,12 +91,19 @@ class TonePresetsManager:
         left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
         left_panel.pack_propagate(False)
 
+        # Create labelframe with centered title
         select_frame = ttk.LabelFrame(left_panel, text="Tone Selection", padding="5", style="TonePresets.TLabelframe")
         select_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Use grid_propagate to ensure the title is properly centered
+        for child in select_frame.winfo_children():
+            if child.winfo_class() == 'TLabel':
+                child.configure(anchor='center')
+                child.place(relx=0.5, rely=0, anchor='n')
 
         # Listbox for tones with scrollbar
         self.tone_list = tk.Listbox(select_frame, height=8, selectmode=tk.BROWSE, 
-                                    bg="#ffffff", fg="#333333", 
+                                    bg="#f0f0f0", fg="#333333", 
                                     selectbackground="#0078d7", selectforeground="#ffffff",
                                     font=("Arial", 10))
         tone_scrollbar = ttk.Scrollbar(select_frame, orient=tk.VERTICAL, command=self.tone_list.yview)
@@ -126,8 +144,15 @@ class TonePresetsManager:
         self.right_panel = ttk.Frame(main_frame, style="TonePresets.TFrame")
         self.right_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
+        # Create labelframe with centered title
         content_frame = ttk.LabelFrame(self.right_panel, text="Tone Description", padding="5", style="TonePresets.TLabelframe")
         content_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Use grid_propagate to ensure the title is properly centered
+        for child in content_frame.winfo_children():
+            if child.winfo_class() == 'TLabel':
+                child.configure(anchor='center')
+                child.place(relx=0.5, rely=0, anchor='n')
 
         self.edit_status_label = ttk.Label(content_frame, foreground="blue", style="TonePresets.TLabel")
         self.edit_status_label.pack(anchor=tk.W, padx=5, pady=(5,0))
@@ -143,7 +168,7 @@ class TonePresetsManager:
         # Create the text widget with word wrap and vertical scrollbar
         self.content_text = tk.Text(text_frame, wrap=tk.WORD,
                                   yscrollcommand=v_scrollbar.set,
-                                  bg="#ffffff", fg="#333333",
+                                  bg="#f0f0f0", fg="#333333",
                                   font=("Arial", 10),
                                   relief="solid", borderwidth=1)
         self.content_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -226,7 +251,7 @@ class TonePresetsManager:
         tone_dialog.grab_set()
         
         # Set background color for a cleaner look
-        tone_dialog.configure(background="#ffffff")
+        tone_dialog.configure(background="#f0f0f0")
         
         # Center the new tone dialog
         dialog_width = 600
@@ -242,9 +267,15 @@ class TonePresetsManager:
         name_entry = ttk.Entry(name_frame)
         name_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
 
-        # Tone description
+        # Tone description with consistent styling
         desc_frame = ttk.LabelFrame(tone_dialog, text="Tone Description", padding="10", style="TonePresets.TLabelframe")
         desc_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
+        # Ensure the title is centered
+        for child in desc_frame.winfo_children():
+            if child.winfo_class() == 'TLabel':
+                child.configure(anchor='center')
+                child.place(relx=0.5, rely=0, anchor='n')
         
         # Create a frame for the text widget and scrollbar
         text_frame = ttk.Frame(desc_frame, style="TonePresets.TFrame")
