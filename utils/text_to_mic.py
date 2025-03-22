@@ -40,7 +40,7 @@ class TextToMic(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        self.version = "1.3.0"
+        self.version = "1.4.0"
         self.title(f"Text to Mic by Scorchsoft.com - v{self.version}")
         
         
@@ -57,10 +57,10 @@ class TextToMic(tk.Tk):
         
         # Fixed window dimensions for all states - DEFINED ONCE as class constants
         # These are the ONLY values that should be used throughout the application
-        self.BASE_WIDTH = 600
-        self.BASE_HEIGHT_WITH_BANNER = 860
-        self.BASE_HEIGHT_NO_BANNER = 700
-        self.COLLAPSED_HEIGHT_WITH_BANNER = 630
+        self.BASE_WIDTH = 590
+        self.BASE_HEIGHT_WITH_BANNER = 890
+        self.BASE_HEIGHT_NO_BANNER = 730
+        self.COLLAPSED_HEIGHT_WITH_BANNER = 620
         self.COLLAPSED_HEIGHT_NO_BANNER = 512
         
         # Initial window geometry
@@ -303,6 +303,10 @@ class TextToMic(tk.Tk):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
         
+        # Configure columns in main_frame to expand properly
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.columnconfigure(1, weight=1)
+        
         # Store reference to main_frame for version notification
         self.main_frame = main_frame
 
@@ -353,6 +357,9 @@ class TextToMic(tk.Tk):
         # Voice and Tone Settings
         ttk.Label(voice_frame, text="Voice Settings", font=("Arial", 10, "bold")).grid(column=0, row=0, sticky=tk.W, pady=(0, 10), columnspan=2)
 
+        # Make sure voice_frame columns expand properly
+        voice_frame.columnconfigure(1, weight=1)
+        
         # Set fixed width for all labels
         label_width = 35  # Adjust this value as needed for your UI
         
@@ -403,11 +410,17 @@ class TextToMic(tk.Tk):
         secondary_device_menu.grid(column=1, row=3, sticky="ew", pady=(0, 5))
         secondary_device_menu.config(width=dropdown_width, style='Compact.TMenubutton')
 
+        # Make sure device_frame columns expand properly
+        device_frame.columnconfigure(1, weight=1)
+
         # Text to Read section with proper layout
         text_read_frame = ttk.Frame(main_frame)
         text_read_frame.grid(column=0, row=4, columnspan=2, sticky="ew", pady=(10, 0))
         text_read_frame.columnconfigure(0, weight=1)  # Left side expands
         text_read_frame.columnconfigure(1, weight=0)  # Right side fixed width
+
+        # Make sure text_read_frame columns expand properly
+        text_read_frame.columnconfigure(0, weight=1)
 
         # Text to Read label - Updated to match other section titles
         ttk.Label(text_read_frame, text="Text to Read", font=("Arial", 10, "bold")).grid(column=0, row=0, sticky=tk.W, pady=(0, 10))
@@ -494,7 +507,7 @@ class TextToMic(tk.Tk):
         #Credits
         # Banner image that links to Scorchsoft
         self.banner_frame = ttk.Frame(main_frame)
-        self.banner_frame.grid(column=0, row=7, columnspan=2, pady=(10, 10))
+        self.banner_frame.grid(column=0, row=7, columnspan=2, pady=(10, 0))
         
         banner_path = self.resource_path("assets/ss-banner-550.png")
         try:
@@ -1258,6 +1271,9 @@ class TextToMic(tk.Tk):
         settings["hide_banner"] = hide_banner
         self.save_settings_to_JSON(settings)
         
+        # Ensure input elements maintain consistent width
+        self._maintain_consistent_width()
+        
         # Make sure presets are laid out correctly if visible
         if presets_visible and hasattr(self, 'presets_manager'):
             self.presets_manager.refresh_presets_display()
@@ -1320,6 +1336,9 @@ class TextToMic(tk.Tk):
             if had_notification:
                 # Need to schedule this after all geometry changes are complete
                 self.after(100, self._reposition_version_notification)
+        
+        # Ensure input elements maintain consistent width
+        self._maintain_consistent_width()
 
     def update_buttons_for_playback(self, is_playing):
         """Update button text based on playback state."""
@@ -1404,5 +1423,27 @@ class TextToMic(tk.Tk):
                 self.version_checker.notification_window.deiconify()
                 # Then reposition it
                 self.version_checker._reposition_notification()
+
+    def _maintain_consistent_width(self):
+        """Ensure all input elements maintain consistent width after banner toggle."""
+        # Get the main frame width (accounting for padding)
+        main_frame_width = self.winfo_width() - 40  # subtract padding (20px on each side)
+        
+        # Force update to ensure we have current dimensions
+        self.update_idletasks()
+        
+        # Configure column weights for main components to ensure they expand properly
+        for frame in [self.main_frame]:
+            if hasattr(frame, 'columnconfigure'):
+                # Make all columns in the frame expandable
+                for i in range(frame.grid_size()[0]):  # Get number of columns
+                    frame.columnconfigure(i, weight=1)
+        
+        # Ensure text input maintains its width
+        if hasattr(self, 'text_input'):
+            self.text_input.config(width=0)  # Let it be sized by the grid
+        
+        # Update and refresh all frames to apply the new layout
+        self.update_idletasks()
 
 
