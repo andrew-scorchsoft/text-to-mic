@@ -26,6 +26,7 @@ from utils.tone_presets_manager import TonePresetsManager
 from utils.presets_manager import PresetsManager
 from utils.ai_editor_manager import AIEditorManager
 from utils.settings_manager import SettingsManager
+from utils.app_text import AppText
 
 # Modify the load environment variables to load from config/.env
 def load_env_file():
@@ -491,40 +492,7 @@ class TextToMic(tk.Tk):
         instruction_window.title("How to Use")
         instruction_window.geometry("600x720")  # Width x Height
 
-        instructions = """How to Use Scorchsoft Text to Mic:
-
-1. Install VB-Cable if you haven't already
-https://vb-audio.com/Cable/
-This tool creates a virtual microphone on your Windows computer or Mac. Once installed you can then trigger audio to be played on this virual cable.
-
-2. Open the Text to Mic app by Scorchsoft, and input your OpenAPI key. How to set up an API key:
-https://platform.openai.com/docs/quickstart/account-setup
-(note that this may require you to add your billing details to OpenAI's playground before a key can be generated)
-In short, you sign up, go to playground, add billing details, go to API keys, add one, copy it, paste into Text to Mic.
-
-WARNING: This will use your OpenAI key to generate audio via the OpenAI API, which will incur charges per use. So please make sure to carefully monitor use.
-OpenAI pricing: openai.com/pricing
-
-3. Choose a voice that you prefer for the speech synthesis.
-
-4. (Optional) Select a Tone Preset to modify how the text is spoken. You can use the built-in presets or create your own under 'Settings > Manage Tone Presets'. Tone presets add special instructions to make the voice sound cheerful, angry, like a bedtime story, etc.
-
-5. Select a playback device. I recommend you select one device to be your headphones, and the other the virtuall microphone installed above (Which is usually labelled "Cable Input (VB-Audio))"
-
-6. Enter the text in the provided text area that you want to convert to speech.
-
-7. Click 'Play Audio' to hear the spoken version of your text.
-
-8. The 'Record Mic' button can be used to record from your microphone and transcribe it to text, which can then be played back.
-
-9. You can change the API key at any time under the 'Settings' menu.
-
-This tool was brought to you by Scorchsoft - We build custom apps to your requirements. Please contact us if you have a requirement for a custom app project.
-
-If you like this tool then please help us out and give us a backlink to help others find it at:
-https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
-
-Please also make sure you read the Terms of use and licence statement before using this app."""
+        instructions = AppText.INSTRUCTIONS
         
         tk.Label(instruction_window, text=instructions, justify=tk.LEFT, wraplength=580).pack(padx=10, pady=10)
         
@@ -552,21 +520,7 @@ Please also make sure you read the Terms of use and licence statement before usi
         
         # If we couldn't find the file in the filesystem, provide a fallback
         if license_content is None:
-            license_content = """
-            Scorchsoft Text to Mic License
-
-            This application is provided for personal and commercial use, subject to the following conditions:
-
-            1. You may use this application for personal or commercial purposes.
-            2. You may not redistribute, sell, or include this application as part of another product without explicit permission.
-            3. This application uses the OpenAI API, and you are responsible for any charges incurred through your API key.
-            4. The developer assumes no liability for any misuse or charges incurred through use of this application.
-
-            For the complete license text, please visit:
-            https://www.scorchsoft.com/text-to-mic-license
-
-            Copyright © Scorchsoft.com
-            """
+            license_content = AppText.DEFAULT_LICENSE
         
         # Create a new window to display the terms of use
         instruction_window = tk.Toplevel(self)
