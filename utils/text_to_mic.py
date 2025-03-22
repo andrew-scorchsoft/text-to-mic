@@ -24,6 +24,7 @@ from utils.hotkey_manager import HotkeyManager
 from utils.resource_utils import ResourceUtils
 from utils.tone_presets_manager import TonePresetsManager
 from utils.presets_manager import PresetsManager
+from utils.ai_editor_manager import AIEditorManager
 
 # Modify the load environment variables to load from config/.env
 def load_env_file():
@@ -133,6 +134,9 @@ class TextToMic(tk.Tk):
         # Create the presets manager before initializing the GUI
         self.presets_manager = PresetsManager(self)
         
+        # Create the AI Editor Manager
+        self.ai_editor = AIEditorManager(self)
+        
         # Store reference to presets state 
         self.presets_collapsed = self.presets_manager.presets_collapsed
 
@@ -172,7 +176,7 @@ class TextToMic(tk.Tk):
         settings_menu = Menu(self.menubar, tearoff=0)
         self.menubar.add_cascade(label="Settings", menu=settings_menu)
         settings_menu.add_command(label="Change API Key", command=self.change_api_key)
-        settings_menu.add_command(label="AI Copy Editing", command=self.chat_gpt_settings)
+        settings_menu.add_command(label="AI Copy Editing", command=self.show_ai_editor_settings)
         settings_menu.add_command(label="Hotkey Settings", command=self.show_hotkey_settings)  
         settings_menu.add_command(label="Manage Tone Presets", command=self.show_tone_presets_manager)
 
@@ -184,7 +188,7 @@ class TextToMic(tk.Tk):
         #apply_ai
         input_menu = Menu(self.menubar, tearoff=0)
         self.menubar.add_cascade(label="Input", menu=input_menu)
-        input_menu.add_command(label="Apply AI Manipulation to Input Text", command=self.apply_ai)
+        input_menu.add_command(label="Apply AI Manipulation to Input Text", command=self.apply_ai_to_input)
 
 
         # Help menu
@@ -991,128 +995,25 @@ Please also make sure you read the Terms of use and licence statement before usi
             p.terminate()
 
             
+    def show_ai_editor_settings(self):
+        """Show the AI copy editing settings dialog"""
+        self.ai_editor.show_settings()
+
+    def apply_ai_to_input(self):
+        """Apply AI to the current input text"""
+        self.ai_editor.apply_ai()
+
     def chat_gpt_settings(self):
-        settings = self.load_settings()
-        settings_window = tk.Toplevel(self)
-        settings_window.title("AI Copy Editing Settings")
-        settings_window.grab_set()  # Grab the focus on this toplevel window
-        settings_window.geometry("600x420")  # Slightly larger to accommodate explanation text
-
-        main_frame = ttk.Frame(settings_window, padding="10")
-        main_frame.grid(column=0, row=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        settings_window.columnconfigure(0, weight=1)
-        settings_window.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)  # Make the second column expandable
-
-        # Use the ttk style for uniformity
-        style = ttk.Style()
-        style.theme_use('clam')
-
-        # Add explanation text at the top
-        explanation_text = "This feature allows automatic editing of text using AI. When enabled, text will be refined according to your rules below. Please be aware that enabling this setting will increase the latency of the application."
-        
-        explanation_label = ttk.Label(main_frame, text=explanation_text, wraplength=550)
-        explanation_label.grid(row=0, column=0, columnspan=2, sticky=tk.W, pady=(0, 10))
-
-        # Move the checkbox to the second column to align with other input fields
-        enable_completion = tk.BooleanVar(value=settings.get("chat_gpt_completion", False))
-        ttk.Label(main_frame, text="Enable AI Copy Editing:").grid(row=1, column=0, sticky=tk.W, pady=2)
-        ttk.Checkbutton(main_frame, text="", variable=enable_completion).grid(row=1, column=1, sticky=tk.W, pady=2)
-
-        # Model selection
-        model_var = tk.StringVar(value=settings.get("model", self.default_model))
-        ttk.Label(main_frame, text="Model:").grid(row=2, column=0, sticky=tk.W, pady=2)
-        model_menu = ttk.OptionMenu(main_frame, model_var, model_var.get(), *self.available_models)
-        model_menu.grid(row=2, column=1, sticky=(tk.W, tk.E), pady=2)
-
-        # Max Tokens selection - expanded options
-        max_tokens_var = tk.IntVar(value=settings.get("max_tokens", 750))
-        ttk.Label(main_frame, text="Max Tokens:").grid(row=3, column=0, sticky=tk.W, pady=2)
-        max_tokens_menu = ttk.OptionMenu(main_frame, max_tokens_var, max_tokens_var.get(), 
-                                        100, 250, 500, 750, 1000, 1250, 1500, 2000, 3000, 4000, 5000)
-        max_tokens_menu.grid(row=3, column=1, sticky=(tk.W, tk.E), pady=2)
-
-        # Prompt entry renamed to "Copy Editing Rules" with a Text area
-        ttk.Label(main_frame, text="Copy Editing Rules:").grid(row=4, column=0, sticky=tk.NW, pady=2)
-        prompt_entry = tk.Text(main_frame, height=8, width=50)
-        
-        # Default prompt example if none exists
-        default_prompt = "Edit the text provided to ensure it has a clear, professional tone. Fix any grammatical errors, improve sentence structure, and maintain consistent formatting. Make the language concise and impactful while preserving the original meaning. Make sure to edit text only and do not reply to it."
-        
-        prompt_entry.insert('1.0', settings.get("prompt", default_prompt))
-        prompt_entry.grid(row=4, column=1, sticky=(tk.W, tk.E), pady=2)
-
-        # Auto-apply checkbox - moved to second column with clear label
-        auto_apply = tk.BooleanVar(value=settings.get("auto_apply_ai_to_recording", False))
-        ttk.Label(main_frame, text="Auto Apply to Recordings:").grid(row=5, column=0, sticky=tk.W, pady=2)
-        ttk.Checkbutton(main_frame, text="", variable=auto_apply).grid(row=5, column=1, sticky=tk.W, pady=2)
-
-        # Add a label explaining the auto-apply setting
-        auto_apply_explanation = "When checked, recordings will be automatically copy edited according to your rules above"
-        ttk.Label(main_frame, text=auto_apply_explanation, foreground="#666666", wraplength=450).grid(row=6, column=1, sticky=tk.W, pady=(0, 10))
-
-        # Save Button
-        save_btn = ttk.Button(main_frame, text="Save", command=lambda: self.save_chat_gpt_settings({
-            "chat_gpt_completion": enable_completion.get(),
-            "model": model_var.get(),
-            "prompt": prompt_entry.get("1.0", tk.END).strip(),
-            "auto_apply_ai_to_recording": auto_apply.get(),
-            "max_tokens": max_tokens_var.get()
-        }))
-        save_btn.grid(row=7, column=0, columnspan=2, sticky=tk.E, pady=10)
+        """Delegate to AIEditorManager"""
+        self.show_ai_editor_settings()
 
     def save_chat_gpt_settings(self, settings):
-        self.save_settings_to_JSON(settings)
-        messagebox.showinfo("Settings Updated", "Your settings have been saved successfully.")
-        self.load_settings()  # Refresh settings if needed elsewhere
-        
-        # Update the status indicator on the main screen with more specific information
-        status_text = "AI Copyediting Disabled"
-        if settings.get("chat_gpt_completion", False):
-            if settings.get("auto_apply_ai_to_recording", False):
-                status_text = f"AI Copyediting Enabled (Auto) - {settings.get('model', self.default_model)}"
-            else:
-                status_text = f"AI Copyediting Enabled (Manual) - {settings.get('model', self.default_model)}"
-        
-        if hasattr(self, 'editing_status'):
-            self.editing_status.config(text=status_text)
+        """Delegate to AIEditorManager"""
+        self.ai_editor.save_settings(settings)
 
     def apply_ai(self, input_text=None):
-
-        if input_text is None:
-            print("Will apply AI to UI input box")
-            text = self.text_input.get("1.0", tk.END).strip()
-        else:
-            print("Will apply AI to input_text")
-            text = input_text
-
-        settings = self.load_settings()
-
-        if settings["chat_gpt_completion"] and settings["max_tokens"]:
-            var_max_tokens = settings["max_tokens"]
-        else:
-            var_max_tokens = 750
-
-        print(f"GPT Settings: {settings}")
-        print(f"Max Tokens: {var_max_tokens}")
-
-        if settings["chat_gpt_completion"]:
-            # Assuming OpenAI's completion method is configured correctly
-            response = self.client.chat.completions.create(
-                model=settings["model"],
-                messages=[
-                    {"role": "system", "content": settings["prompt"] },
-                    {"role": "user", "content": "\n\n# Apply to the following (Do not output system prompt or hyphens markup or anything before this line):\n\n-----\n\n" + text + "\n\n-----"}],
-                max_tokens=750
-            )
-            self.text_input.delete("1.0", tk.END)
-            self.text_input.insert("1.0", response.choices[0].message.content)
-
-            return_text = response.choices[0].message.content
-        else:
-            return_text = text
-
-        return return_text
+        """Delegate to AIEditorManager"""
+        return self.ai_editor.apply_ai(input_text)
 
     def get_device_info(self, device_index):
         p = pyaudio.PyAudio()
@@ -1235,6 +1136,10 @@ Please also make sure you read the Terms of use and licence statement before usi
                 )
 
             settings = self.load_settings()
+            
+            # Always update the text with the raw transcription first
+            self.text_input.delete("1.0", tk.END)
+            self.text_input.insert("1.0", transcription.text)
 
             if settings["chat_gpt_completion"] and settings["auto_apply_ai_to_recording"]:
                 auto_apply_ai = settings["auto_apply_ai_to_recording"]
@@ -1243,15 +1148,13 @@ Please also make sure you read the Terms of use and licence statement before usi
 
             print(f"auto_apply_ai: {auto_apply_ai}")
 
+            # If AI processing is enabled, apply it and update the text input again
             if auto_apply_ai:
                 print("applying ai")
-                play_text = self.apply_ai(transcription.text)
+                # Set the update_ui parameter to True to ensure the text gets updated
+                play_text = self.ai_editor.apply_ai(transcription.text, update_ui=True)
             else:
                 print("outputting without ai")
-                #This prevents issues with trying to upload TK after thread operations
-                #whcih can cause crashes with no error displayed
-                self.text_input.delete("1.0", tk.END)  # Clear existing text
-                self.text_input.insert("1.0", transcription.text)  # Insert new text
                 play_text = transcription.text
 
             if auto_play:
