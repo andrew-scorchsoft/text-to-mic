@@ -61,7 +61,7 @@ class PresetsManager:
             compound=tk.LEFT,
             text=" Presets",
             command=self.toggle_presets,
-            style="Flat.TButton"
+            style="PresetsButton.TButton"
         )
         # Use grid instead of pack for the button to avoid mixing layout managers
         self.presets_button.grid(column=0, row=0, sticky=tk.W, padx=0, pady=2)
@@ -81,6 +81,14 @@ class PresetsManager:
                             borderwidth=0,
                             highlightthickness=0,
                             font=("Arial", 12),
+                            anchor="center",
+                            background=bg_color)
+        
+        # Create specific style for the presets button with smaller font
+        self.parent.style.configure("PresetsButton.TButton",
+                            borderwidth=0,
+                            highlightthickness=0,
+                            font=("Arial", 10),  # Smaller font size
                             anchor="center",
                             background=bg_color)
         
@@ -577,6 +585,60 @@ class PresetsManager:
             messagebox.showinfo("Save Successful", f"The text has been successfully saved to the category: '{category}'.")
         else:
             messagebox.showinfo("Error", "Please enter text and select a category before saving.")
+
+    def show_save_preset_dialog(self):
+        """Show a dialog to save the current text as a preset."""
+        text = self.parent.text_input.get("1.0", tk.END).strip()
+        if not text:
+            messagebox.showinfo("Error", "Please enter some text before saving as a preset.")
+            return
+
+        # Create dialog window
+        dialog = tk.Toplevel(self.parent)
+        dialog.title("Save As Preset")
+        dialog.geometry("300x200")
+        dialog.transient(self.parent)
+        dialog.grab_set()
+        dialog.focus_set()
+
+        # Add widgets to the dialog
+        ttk.Label(dialog, text="Enter preset category:").pack(pady=(15, 5))
+        
+        # Add existing categories dropdown
+        categories = ["Select Category"] + list(set([cat["category"] for cat in self.presets]))
+        category_var = tk.StringVar(value="Select Category")
+        
+        category_combo = ttk.Combobox(dialog, textvariable=category_var, values=categories)
+        category_combo.pack(pady=5, padx=20, fill=tk.X)
+        
+        ttk.Label(dialog, text="Or enter a new category:").pack(pady=(10, 5))
+        
+        new_category_entry = ttk.Entry(dialog)
+        new_category_entry.pack(pady=5, padx=20, fill=tk.X)
+
+        def save_preset():
+            new_category = new_category_entry.get().strip()
+            selected_category = category_var.get()
+            
+            # Use new category if provided, otherwise use the dropdown selection
+            category = new_category if new_category else selected_category
+            
+            if category and category != "Select Category":
+                self.add_preset(category, text, is_favourite=False)
+                messagebox.showinfo("Save Successful", f"The text has been successfully saved to the category: '{category}'.")
+                dialog.destroy()
+            else:
+                messagebox.showinfo("Error", "Please select an existing category or enter a new one.")
+        
+        # Add save button
+        save_button = ttk.Button(dialog, text="Save", command=save_preset)
+        save_button.pack(pady=15)
+        
+        # Center the dialog on the parent window
+        dialog.update_idletasks()
+        x = self.parent.winfo_x() + (self.parent.winfo_width() // 2) - (dialog.winfo_width() // 2)
+        y = self.parent.winfo_y() + (self.parent.winfo_height() // 2) - (dialog.winfo_height() // 2)
+        dialog.geometry(f"+{x}+{y}")
 
     def load_presets(self):
         """

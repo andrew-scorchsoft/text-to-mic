@@ -8,6 +8,7 @@ import webbrowser
 import json
 import sys
 import time
+import requests
 
 from pystray import Icon as icon, MenuItem as item, Menu as menu
 from PIL import Image, ImageDraw, ImageTk
@@ -27,6 +28,7 @@ from utils.presets_manager import PresetsManager
 from utils.ai_editor_manager import AIEditorManager
 from utils.settings_manager import SettingsManager
 from utils.app_text import AppText
+from utils.version_checker import VersionChecker
 
 # Modify the load environment variables to load from config/.env
 def load_env_file():
@@ -125,14 +127,14 @@ class TextToMic(tk.Tk):
         self.tone_presets = TonePresetsManager.load_tone_presets(self)
         self.current_tone_name = self.load_current_tone_from_settings()
         
-        # Create the category variable for the dropdown
-        self.category_var = tk.StringVar(value="Select Category")
-
-        # Add toggle for banner visibility before presets manager initialization
-        self.banner_var = tk.BooleanVar()
+        # Initialize settings before creating menu
         settings = self.load_settings()
+        self.banner_var = tk.BooleanVar()
         self.banner_var.set(settings.get("hide_banner", False))
-
+        
+        # Initialize auto_check_version before creating menu
+        self.auto_check_version = tk.BooleanVar(value=settings.get("auto_check_version", True))
+        
         # Create the presets manager before initializing the GUI
         self.presets_manager = PresetsManager(self)
         
@@ -142,6 +144,9 @@ class TextToMic(tk.Tk):
         # Store reference to presets state 
         self.presets_collapsed = self.presets_manager.presets_collapsed
 
+        # Initialize the main frame as a class variable for version notification to work
+        self.main_frame = None
+
         # Create menu and initialize GUI after presets manager is created
         self.create_menu()
         self.initialize_gui()
@@ -149,9 +154,18 @@ class TextToMic(tk.Tk):
         # Initialize our HotkeyManager
         self.hotkey_manager = HotkeyManager(self)
         
+        # Initialize version checker
+        self.version_checker = VersionChecker(self, self.version)
+        
         # If banner should be hidden based on settings, hide it now
         if self.banner_var.get():
             self.toggle_banner()
+            
+        # Schedule version check after app is fully loaded
+        # Only check automatically if the setting is enabled
+        if self.auto_check_version.get():
+            # Delay the check to ensure UI is fully loaded
+            self.after(2000, self.version_checker.check_version, False)
 
     def ensure_config_directory(self):
         """Ensure the config directory exists."""
@@ -198,8 +212,11 @@ class TextToMic(tk.Tk):
         self.menubar.add_cascade(label="Help", menu=help_menu)
         help_menu.add_command(label="How to Use", command=self.show_instructions)
         help_menu.add_command(label="Terms of Use and Licence", command=self.show_terms_of_use)
-        help_menu.add_command(label="Version", command=self.show_version)
+        help_menu.add_command(label="Check Version", command=self.check_version)
         help_menu.add_command(label="Hotkey Instructions", command=self.show_hotkey_instructions)
+        
+        # Add toggle for automatic version checking
+        help_menu.add_checkbutton(label="Auto Check for Updates", variable=self.auto_check_version, command=self.toggle_auto_version_check)
         
         # Add toggle for banner visibility - use the existing banner_var from __init__
         help_menu.add_checkbutton(label="Hide Banner", variable=self.banner_var, command=self.toggle_banner)
@@ -272,6 +289,9 @@ class TextToMic(tk.Tk):
         main_frame.grid(column=0, row=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
+        
+        # Store reference to main_frame for version notification
+        self.main_frame = main_frame
 
         # Use the background color from our style for the text widget
         bg_color = self.style.lookup('TFrame', 'background')
@@ -373,18 +393,10 @@ class TextToMic(tk.Tk):
         save_frame = ttk.Frame(text_read_frame)
         save_frame.grid(column=1, row=0, sticky=tk.E)
 
-        # Preset Category dropdown
-        categories = [cat["category"] for cat in self.presets_manager.presets]
-        category_menu = ttk.OptionMenu(save_frame, self.category_var, *categories)
-        category_menu.grid(column=0, row=0, sticky=tk.E, padx=(0, 5))
-        category_menu.config(style='Compact.TMenubutton')
-
-        # Create a compact style for the Save button to match dropdown height
+        # Create a compact style for the button
         self.style.configure('Compact.TButton', padding=(2, 1))
-
-        # Save button with matching height
-        save_button = ttk.Button(save_frame, text="Save", width=8, style='Compact.TButton', command=self.save_current_text_as_preset)
-        save_button.grid(column=1, row=0, sticky=tk.E)
+        save_as_preset_button = ttk.Button(save_frame, text="Save As Preset", width=15, style='Compact.TButton', command=self.show_save_preset_dialog)
+        save_as_preset_button.grid(column=0, row=0, sticky=tk.E)
 
         # Text input area with proper spacing
         self.text_input = tk.Text(main_frame, height=5, width=68)
@@ -485,7 +497,7 @@ class TextToMic(tk.Tk):
 
     def save_current_text_as_preset(self):
         """Forward the save request to the presets manager."""
-        self.presets_manager.save_current_text_as_preset()
+        self.show_save_preset_dialog()
 
     def show_instructions(self):
         instruction_window = tk.Toplevel(self)
@@ -1227,6 +1239,11 @@ class TextToMic(tk.Tk):
                 # Use grid (not pack) to ensure proper positioning
                 self.presets_manager.presets_button.grid_configure(column=0, row=0, sticky=tk.W, padx=0, pady=2)
 
+        # If we have a version notification visible, ensure it remains at the top
+        if hasattr(self, 'version_checker') and self.version_checker.notification_visible:
+            self.version_checker.notification_frame.grid(row=0, column=0, sticky="ew")
+            self.main_frame.grid(row=1, column=0, sticky="nsew")
+
     def toggle_presets(self):
         """Toggle the visibility of the presets panel."""
         if hasattr(self, 'presets_manager'):
@@ -1264,6 +1281,11 @@ class TextToMic(tk.Tk):
             # Refresh presets display if they're visible
             if not self.presets_collapsed:
                 self.presets_manager.refresh_presets_display()
+
+            # If we have a version notification visible, ensure it remains at the top
+            if hasattr(self, 'version_checker') and self.version_checker.notification_visible:
+                self.version_checker.notification_frame.grid(row=0, column=0, sticky="ew")
+                self.main_frame.grid(row=1, column=0, sticky="nsew")
 
     def update_buttons_for_playback(self, is_playing):
         """Update button text based on playback state."""
@@ -1324,6 +1346,20 @@ class TextToMic(tk.Tk):
         """Save the selected secondary output device in settings."""
         settings = self.load_settings()
         settings["secondary_device"] = device_name
+        self.save_settings_to_JSON(settings)
+
+    def show_save_preset_dialog(self):
+        """Show the save preset dialog."""
+        self.presets_manager.show_save_preset_dialog()
+
+    def check_version(self):
+        """Run the version checker and show the result"""
+        self.version_checker.check_version(True)  # True means show result even if no update available
+        
+    def toggle_auto_version_check(self):
+        """Toggle automatic version checking and save the setting"""
+        settings = self.load_settings()
+        settings["auto_check_version"] = self.auto_check_version.get()
         self.save_settings_to_JSON(settings)
 
 
