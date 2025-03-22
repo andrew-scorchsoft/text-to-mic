@@ -1456,19 +1456,22 @@ Please also make sure you read the Terms of use and licence statement before usi
             # Otherwise, submit text as before
             self.submit_text()
 
-    def on_input_device_change(self, event):
-        """Handle changes to the input device dropdown."""
-        selected_device = event.widget.cget("value")
-        self.input_device_index.set(selected_device)
-
-    def on_primary_device_change(self, event):
-        """Handle changes to the primary device dropdown."""
-        selected_device = event.widget.cget("value")
-        self.device_index.set(selected_device)
-
-    def on_secondary_device_change(self, event):
-        """Handle changes to the secondary device dropdown."""
-        selected_device = event.widget.cget("value")
-        self.device_index_2.set(selected_device)
+    def on_input_device_change(self, device_name):
+        """Save the selected input device in settings."""
+        settings = self.load_settings()
+        settings["input_device"] = device_name
+        self.save_settings_to_JSON(settings)
+        
+    def on_primary_device_change(self, device_name):
+        """Save the selected primary output device in settings."""
+        settings = self.load_settings()
+        settings["primary_device"] = device_name
+        self.save_settings_to_JSON(settings)
+        
+    def on_secondary_device_change(self, device_name):
+        """Save the selected secondary output device in settings."""
+        settings = self.load_settings()
+        settings["secondary_device"] = device_name
+        self.save_settings_to_JSON(settings)
 
 
