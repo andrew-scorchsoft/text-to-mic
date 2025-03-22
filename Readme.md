@@ -4,12 +4,14 @@
 
 **Text to Mic** is a powerful, user-friendly application that seamlessly converts written text into natural-sounding speech, playing it over a virtual microphone. This tool is perfect for situations where you want to automate voice output — whether it's for presentations, online meetings, voiceovers, or accessibility purposes.
 
-![Example Image 1](images/app-screenshot-v1-3-5.png)
+![Main UI](images/main-ui-v1-4-0.png)
 
 More info about Text to Mic including a changelog can be found here:
 https://www.scorchsoft.com/blog/text-to-mic-for-meetings/
 
 Developed by Scorchsoft, a leading app development agency, Text to Mic leverages the advanced capabilities of OpenAI's speech synthesis models to produce high-quality audio output. By using a virtual microphone (created with VB-Cable), it allows you to stream generated speech to any application that accepts microphone input, such as Zoom, Google Meet, Microsoft Teams, or any other conferencing tool.
+
+
 
 ### Key Features:
 - **Seamless Text-to-Speech Conversion**: Converts any text into clear, human-like speech with just a few clicks or commands.
@@ -25,6 +27,20 @@ This script uses OpenAI to convert text to speech, and then speak that speech ov
 
 This project is licensed under the terms of the [GNU Lesser General Public License (LGPL) v3.0](LICENSE.md) as well as additional terms of use. By using this software, you agree to the terms and conditions outlined in the [LICENSE.md](LICENSE.md) file.
 
+## Screenshots
+
+![Main UI with Presets Expanded](images/main-ui-plus-presets-v1-4-0.png)
+
+Manage different speaking tones available:
+
+![Tone Manager](images/tone-manager-v1-4-0.png)
+
+Customise keyboard shortcuts:
+
+![Keyboard shortcut management](images/keyboard-shortcuts-v1-4-0.png)
+
+Enable AI Copyediting
+![AI Copyediting](images/ai-copyediting-v1-4-0.png)
 
 ## Running the GUI version
 
