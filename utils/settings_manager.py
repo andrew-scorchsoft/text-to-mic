@@ -87,7 +87,7 @@ class SettingsManager:
         settings_file = cls.get_settings_file_path()
         
         with open(settings_file, "w") as f:
-            json.dump(settings, f)
+            json.dump(settings, f, indent=4)
     
     @classmethod
     def update_settings(cls, partial_settings):

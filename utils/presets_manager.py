@@ -44,6 +44,8 @@ class PresetsManager:
         
         # Bind to window resize for responsive layout
         self.parent.bind("<Configure>", self.on_window_resize)
+        # This resize timer helps batch updates during resizing
+        self.resize_timer = None
         
     def create_presets_section(self):
         """Create the presets section UI with accordion behavior."""
@@ -146,6 +148,9 @@ class PresetsManager:
         # Configure the scroll region to update when the frame changes
         self.presets_scrollable_frame.bind("<Configure>", 
                                           lambda e: self.presets_canvas.configure(scrollregion=self.presets_canvas.bbox("all")))
+        
+        # Add a binding for the canvas size changes
+        self.presets_canvas.bind("<Configure>", self.on_canvas_resize)
 
         # Populate tabs and presets
         self.populate_tabs()  # Refresh tabs to show selection
@@ -159,10 +164,9 @@ class PresetsManager:
         """Handler for window resize events to adjust the presets layout."""
         # Only proceed if event is from the main window and presets are visible
         if event and event.widget == self.parent and not self.presets_collapsed:
-            # Schedule a refresh after a short delay to prevent excessive updates during resize
-            if hasattr(self, 'resize_timer') and self.resize_timer:
-                self.parent.after_cancel(self.resize_timer)
-            self.resize_timer = self.parent.after(100, self.refresh_presets_display)
+            # We don't need to immediately refresh here, as on_canvas_resize will handle it
+            # This is because the window resize will trigger canvas resize events
+            pass
         
     def _adjust_row_weights(self):
         """Adjust row weights to prioritize presets area expansion."""
@@ -313,14 +317,17 @@ class PresetsManager:
         canvas_width = self.presets_canvas.winfo_width()
         # Ensure we have a minimum width to calculate with
         if canvas_width < 50:  # If the canvas is too narrow or not yet realized
-            canvas_width = self.parent.winfo_width() - 30  # Estimate canvas width
-            
+            canvas_width = self.parent.winfo_width() - 40  # Estimate canvas width with more margin for scrollbar
+        
         # Calculate number of columns (minimum 1, maximum 20)
         min_card_width = 140  # Minimum width for each card
         num_columns = max(1, min(20, canvas_width // min_card_width))
         
+        # Log for debugging - can be removed in production
+        print(f"Canvas width: {canvas_width}, Columns: {num_columns}")
+        
         # Dynamically adjust card width based on available space
-        preset_width = max(min_card_width, canvas_width // num_columns - 8)
+        preset_width = max(min_card_width, (canvas_width // num_columns) - 10)  # Slightly more padding
         preset_height = 100
         
         # Configure columns to fill available space
@@ -715,4 +722,15 @@ class PresetsManager:
                 
         # Save and refresh 
         self.debounced_save()
-        self.refresh_presets_display() 
+        self.refresh_presets_display()
+
+    def on_canvas_resize(self, event=None):
+        """Handle resize events specifically for the presets canvas area."""
+        # Only process if presets are visible
+        if not self.presets_collapsed:
+            # Cancel any previous refresh timer to avoid multiple refreshes
+            if hasattr(self, 'resize_timer') and self.resize_timer:
+                self.parent.after_cancel(self.resize_timer)
+            
+            # Schedule a refresh with a short delay to avoid excessive refreshes during drag
+            self.resize_timer = self.parent.after(150, self.refresh_presets_display) 

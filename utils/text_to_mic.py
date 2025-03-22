@@ -40,7 +40,7 @@ class TextToMic(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        self.version = "1.3.5"
+        self.version = "1.3.0"
         self.title(f"Text to Mic by Scorchsoft.com - v{self.version}")
         
         
@@ -57,7 +57,7 @@ class TextToMic(tk.Tk):
         
         # Fixed window dimensions for all states - DEFINED ONCE as class constants
         # These are the ONLY values that should be used throughout the application
-        self.BASE_WIDTH = 590
+        self.BASE_WIDTH = 600
         self.BASE_HEIGHT_WITH_BANNER = 860
         self.BASE_HEIGHT_NO_BANNER = 700
         self.COLLAPSED_HEIGHT_WITH_BANNER = 630
@@ -188,45 +188,59 @@ class TextToMic(tk.Tk):
         self.menubar = Menu(self)
         self.config(menu=self.menubar)
 
+        # Get current hotkey settings
+        settings = self.load_settings()
+        hotkey_manager = self.hotkey_manager if hasattr(self, 'hotkey_manager') else None
+        
+        # Format hotkeys for display in menus
+        if hotkey_manager:
+            replay_shortcut = hotkey_manager.format_shortcut(settings["hotkeys"]["play_last_audio"])
+            record_shortcut = hotkey_manager.format_shortcut(settings["hotkeys"]["record_start_stop"])
+            stop_shortcut = hotkey_manager.format_shortcut(settings["hotkeys"]["stop_recording"])
+            cancel_shortcut = hotkey_manager.format_shortcut(settings["hotkeys"]["cancel_operation"])
+        else:
+            # Default values if hotkey_manager isn't available
+            replay_shortcut = "Ctrl+Shift+8"
+            record_shortcut = "Ctrl+Shift+0"
+            stop_shortcut = "Ctrl+Shift+9"
+            cancel_shortcut = "Ctrl+Shift+1"
+
         # File or settings menu
         settings_menu = Menu(self.menubar, tearoff=0)
         self.menubar.add_cascade(label="Settings", menu=settings_menu)
-        settings_menu.add_command(label="Change API Key", command=self.change_api_key)
-        settings_menu.add_command(label="AI Copy Editing", command=self.show_ai_editor_settings)
-        settings_menu.add_command(label="Hotkey Settings", command=self.show_hotkey_settings)  
-        settings_menu.add_command(label="Manage Tone Presets", command=self.show_tone_presets_manager)
+        settings_menu.add_command(label="API Key", command=self.change_api_key)
+        settings_menu.add_command(label="AI Copyediting", command=self.show_ai_editor_settings)
+        settings_menu.add_command(label="Keyboard Shortcuts", command=self.show_hotkey_settings)  
+        settings_menu.add_command(label="Manage Tones", command=self.show_tone_presets_manager)
+        settings_menu.add_separator()
         settings_menu.add_checkbutton(label="Auto Check for Updates", variable=self.auto_check_version, command=self.toggle_auto_version_check)
+        settings_menu.add_checkbutton(label="Hide Scorchsoft Banner", variable=self.banner_var, command=self.toggle_banner)
 
         # Playback menu
         playback_menu = Menu(self.menubar, tearoff=0)
-        self.menubar.add_cascade(label="Playback", menu=playback_menu)
-        playback_menu.add_command(label="Play Last Audio", command=self.play_last_audio)
-
-        #apply_ai
-        input_menu = Menu(self.menubar, tearoff=0)
-        self.menubar.add_cascade(label="Input", menu=input_menu)
-        input_menu.add_command(label="Apply AI Manipulation to Input Text", command=self.apply_ai_to_input)
-
+        self.menubar.add_cascade(label="Actions", menu=playback_menu)
+        
+        # Add keyboard shortcuts to menu items
+        playback_menu.add_command(label=f"Replay [{replay_shortcut}]", command=self.play_last_audio)
+        playback_menu.add_command(label="Apply AI Copyedit", command=self.apply_ai_to_input)
+        playback_menu.add_separator()
+        playback_menu.add_command(label=f"Start/Stop Recording [{record_shortcut}]", command=self.handle_record_button_click)
+        playback_menu.add_command(label=f"Stop Recording [{stop_shortcut}]", command=lambda: self.stop_recording(auto_play=False))
+        playback_menu.add_command(label=f"Cancel Operation [{cancel_shortcut}]", command=self.stop_playback)
 
         # Help menu
         help_menu = Menu(self.menubar, tearoff=0)
         self.menubar.add_cascade(label="Help", menu=help_menu)
         help_menu.add_command(label="Check Version", command=self.check_version)
-        
         help_menu.add_command(label="How to Use", command=self.show_instructions)
         help_menu.add_command(label="Terms of Use and Licence", command=self.show_terms_of_use)
-        help_menu.add_command(label="Hotkey Instructions", command=self.show_hotkey_instructions)
         
-        # Add toggle for banner visibility - use the existing banner_var from __init__
-        help_menu.add_checkbutton(label="Hide Banner", variable=self.banner_var, command=self.toggle_banner)
+        
 
     def show_hotkey_settings(self):
         """Show the hotkey settings dialog."""
         HotkeyManager.hotkey_settings_dialog(self)
 
-    def show_hotkey_instructions(self):
-        """Show hotkey instructions."""
-        HotkeyManager.show_hotkey_instructions(self)
 
     def change_api_key(self):
         """Change the API key using APIKeyManager."""
@@ -401,12 +415,12 @@ class TextToMic(tk.Tk):
         self.text_input = tk.Text(main_frame, height=5, width=68)
         # Use white background for text input instead of the system background color
         text_color = self.style.lookup('TLabel', 'foreground')
-        self.text_input.configure(bg="white", fg=text_color, insertbackground=text_color, wrap=tk.WORD)
+        self.text_input.configure(bg="white", fg=text_color, insertbackground=text_color, wrap=tk.WORD, font=("Arial", 10))
         self.text_input.grid(column=0, row=5, columnspan=2, pady=(0, 20), sticky="nsew")  # Proper spacing
 
         # Add a status frame at the bottom of the text input with white background
         status_frame = ttk.Frame(main_frame, style='White.TFrame')
-        status_frame.grid(column=0, row=5, columnspan=2, sticky=(tk.S, tk.E), pady=(0, 25))
+        status_frame.grid(column=0, row=5, columnspan=2, sticky=(tk.S, tk.E), pady=(0, 25), padx=(0, 5))  # Add right padding to shift the frame inward
         
         # Create a custom style for the white frame
         self.style.configure('White.TFrame', background='white')
@@ -1029,6 +1043,7 @@ class TextToMic(tk.Tk):
             record_shortcut = "+".join(filter(None, settings["hotkeys"]["record_start_stop"]))
             play_shortcut = "+".join(filter(None, settings["hotkeys"]["play_last_audio"]))
             stop_shortcut = "+".join(filter(None, settings["hotkeys"]["stop_recording"]))
+            cancel_shortcut = "+".join(filter(None, settings["hotkeys"]["cancel_operation"]))
             
             # Update CTkButton for recording state, keeping shortcuts visible
             self.record_button.configure(text=f"Stop and Insert", fg_color="#d32f2f")

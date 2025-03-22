@@ -103,7 +103,7 @@ class TonePresetsManager:
 
         # Listbox for tones with scrollbar
         self.tone_list = tk.Listbox(select_frame, height=8, selectmode=tk.BROWSE, 
-                                    bg="#f0f0f0", fg="#333333", 
+                                    bg="#ffffff", fg="#333333", 
                                     selectbackground="#0078d7", selectforeground="#ffffff",
                                     font=("Arial", 10))
         tone_scrollbar = ttk.Scrollbar(select_frame, orient=tk.VERTICAL, command=self.tone_list.yview)
@@ -168,7 +168,7 @@ class TonePresetsManager:
         # Create the text widget with word wrap and vertical scrollbar
         self.content_text = tk.Text(text_frame, wrap=tk.WORD,
                                   yscrollcommand=v_scrollbar.set,
-                                  bg="#f0f0f0", fg="#333333",
+                                  bg="#ffffff", fg="#333333",
                                   font=("Arial", 10),
                                   relief="solid", borderwidth=1)
         self.content_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)

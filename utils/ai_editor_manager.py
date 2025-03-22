@@ -62,7 +62,7 @@ class AIEditorManager:
 
         # Prompt entry renamed to "Copy Editing Rules" with a Text area
         ttk.Label(main_frame, text="Copy Editing Rules:").grid(row=4, column=0, sticky=tk.NW, pady=2)
-        prompt_entry = tk.Text(main_frame, height=8, width=50)
+        prompt_entry = tk.Text(main_frame, height=8, width=50, background="white", font=("Arial", 10))
         
         # Default prompt example if none exists
         default_prompt = "Edit the text provided to ensure it has a clear, professional tone. Fix any grammatical errors, improve sentence structure, and maintain consistent formatting. Make the language concise and impactful while preserving the original meaning. Make sure to edit text only and do not reply to it."

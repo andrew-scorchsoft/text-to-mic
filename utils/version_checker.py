@@ -68,22 +68,28 @@ class VersionChecker:
                         f"Could not check for updates. Server returned status code: {response.status_code}"
                     ))
         except requests.RequestException as e:
+            error_message = f"Could not connect to update server: {str(e)}"
+            print(f"Version check error: {error_message}")
             if show_result:
-                self.app.after(0, lambda: messagebox.showwarning(
+                self.app.after(0, lambda msg=error_message: messagebox.showwarning(
                     "Version Check Failed", 
-                    f"Could not connect to update server: {str(e)}"
+                    msg
                 ))
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            error_message = "Invalid update information received."
+            print(f"Version check error: {error_message}")
             if show_result:
-                self.app.after(0, lambda: messagebox.showwarning(
+                self.app.after(0, lambda msg=error_message: messagebox.showwarning(
                     "Version Check Failed", 
-                    "Invalid update information received."
+                    msg
                 ))
         except Exception as e:
+            error_message = f"Could not check for updates: {str(e)}"
+            print(f"Version check error: {error_message}")
             if show_result:
-                self.app.after(0, lambda: messagebox.showwarning(
+                self.app.after(0, lambda msg=error_message: messagebox.showwarning(
                     "Version Check Failed", 
-                    f"Could not check for updates: {str(e)}"
+                    msg
                 ))
     
     def show_update_notification(self, latest_version, download_url, message):
