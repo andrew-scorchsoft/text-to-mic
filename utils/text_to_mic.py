@@ -336,11 +336,13 @@ class TextToMic(tk.Tk):
         # Create frames for better organization
         voice_frame = ttk.Frame(main_frame)
         voice_frame.grid(column=0, row=0, columnspan=2, sticky="ew")
-        voice_frame.columnconfigure(1, weight=1)  # Make the second column expandable
+        voice_frame.columnconfigure(0, weight=1)  # Make the first column expandable
+        voice_frame.columnconfigure(1, weight=3)  # Make the second column expand more
 
         device_frame = ttk.Frame(main_frame)
         device_frame.grid(column=0, row=1, columnspan=2, sticky="ew", pady=(10, 0))
-        device_frame.columnconfigure(1, weight=1)  # Make the second column expandable
+        device_frame.columnconfigure(0, weight=1)  # Make the first column expandable
+        device_frame.columnconfigure(1, weight=3)  # Make the second column expand more
 
         # Set fixed width for dropdown menus
         dropdown_width = 30
@@ -351,18 +353,23 @@ class TextToMic(tk.Tk):
         # Voice and Tone Settings
         ttk.Label(voice_frame, text="Voice Settings", font=("Arial", 10, "bold")).grid(column=0, row=0, sticky=tk.W, pady=(0, 10), columnspan=2)
 
+        # Set fixed width for all labels
+        label_width = 35  # Adjust this value as needed for your UI
+        
         self.voice_var = tk.StringVar(value="fable")
         voices = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer']
-        ttk.Label(voice_frame, text="Voice:").grid(column=0, row=1, sticky=tk.W, pady=(0, 5))
+        voice_label = ttk.Label(voice_frame, text="Voice:", width=label_width)
+        voice_label.grid(column=0, row=1, sticky=tk.W, pady=(0, 5))
         voice_menu = ttk.OptionMenu(voice_frame, self.voice_var, self.voice_var.get(), *voices)
-        voice_menu.grid(column=1, row=1, sticky=tk.E, pady=(0, 5))
+        voice_menu.grid(column=1, row=1, sticky="ew", pady=(0, 5))
         voice_menu.config(width=dropdown_width, style='Compact.TMenubutton')
 
         self.tone_var = tk.StringVar(value=self.current_tone_name)
         tone_options = ["None"] + list(self.tone_presets.keys())
-        ttk.Label(voice_frame, text="Tone Preset:").grid(column=0, row=2, sticky=tk.W, pady=(0, 5))
+        tone_label = ttk.Label(voice_frame, text="Tone Preset:", width=label_width)
+        tone_label.grid(column=0, row=2, sticky=tk.W, pady=(0, 5))
         self.tone_menu = ttk.OptionMenu(voice_frame, self.tone_var, self.tone_var.get(), *tone_options, command=self.on_tone_change)
-        self.tone_menu.grid(column=1, row=2, sticky=tk.E, pady=(0, 5))
+        self.tone_menu.grid(column=1, row=2, sticky="ew", pady=(0, 5))
         self.tone_menu.config(width=dropdown_width, style='Compact.TMenubutton')
 
         # Separator between Voice Settings and Device Settings
@@ -372,25 +379,28 @@ class TextToMic(tk.Tk):
         # Device Settings
         ttk.Label(device_frame, text="Device Settings", font=("Arial", 10, "bold")).grid(column=0, row=0, sticky=tk.W, pady=(0, 10), columnspan=2)
 
-        ttk.Label(device_frame, text="Input Device (optional):").grid(column=0, row=1, sticky=tk.W, pady=(0, 5))
+        input_label = ttk.Label(device_frame, text="Input Device (optional):", width=label_width)
+        input_label.grid(column=0, row=1, sticky=tk.W, pady=(0, 5))
         input_device_menu = ttk.OptionMenu(device_frame, self.input_device_index, self.input_device_index.get(), 
                                           *self.available_input_devices.keys(), 
                                           command=self.on_input_device_change)
-        input_device_menu.grid(column=1, row=1, sticky=tk.E, pady=(0, 5))
+        input_device_menu.grid(column=1, row=1, sticky="ew", pady=(0, 5))
         input_device_menu.config(width=dropdown_width, style='Compact.TMenubutton')
 
-        ttk.Label(device_frame, text="Primary Playback Device:").grid(column=0, row=2, sticky=tk.W, pady=(0, 5))
+        primary_label = ttk.Label(device_frame, text="Primary Playback Device:", width=label_width)
+        primary_label.grid(column=0, row=2, sticky=tk.W, pady=(0, 5))
         primary_device_menu = ttk.OptionMenu(device_frame, self.device_index, self.device_index.get(), 
                                             *self.available_devices.keys(),
                                             command=self.on_primary_device_change)
-        primary_device_menu.grid(column=1, row=2, sticky=tk.E, pady=(0, 5))
+        primary_device_menu.grid(column=1, row=2, sticky="ew", pady=(0, 5))
         primary_device_menu.config(width=dropdown_width, style='Compact.TMenubutton')
 
-        ttk.Label(device_frame, text="Secondary Playback Device (optional):").grid(column=0, row=3, sticky=tk.W, pady=(0, 5))
+        secondary_label = ttk.Label(device_frame, text="Secondary Playback Device (optional):", width=label_width)
+        secondary_label.grid(column=0, row=3, sticky=tk.W, pady=(0, 5))
         secondary_device_menu = ttk.OptionMenu(device_frame, self.device_index_2, self.device_index_2.get(), 
                                               "None", *self.available_devices.keys(),
                                               command=self.on_secondary_device_change)
-        secondary_device_menu.grid(column=1, row=3, sticky=tk.E, pady=(0, 5))
+        secondary_device_menu.grid(column=1, row=3, sticky="ew", pady=(0, 5))
         secondary_device_menu.config(width=dropdown_width, style='Compact.TMenubutton')
 
         # Text to Read section with proper layout
