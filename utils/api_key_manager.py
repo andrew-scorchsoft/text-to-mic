@@ -1,5 +1,6 @@
 import os
 import platform
+import sys
 from pathlib import Path
 from tkinter import messagebox, simpledialog
 from dotenv import load_dotenv
@@ -90,7 +91,17 @@ class APIKeyManager:
                                 APIKeyManager.save_api_key_mac(api_key)
                             else:
                                 APIKeyManager.save_api_key(api_key)
-                            messagebox.showinfo("API Key Set", "The OpenAI API Key has been updated successfully.")
+                            
+                            # Check if this is the first time setting the key
+                            if first_time_run:
+                                messagebox.showinfo(
+                                    "API Key Set - Restarting",
+                                    "The OpenAI API Key has been saved. The application will now restart to apply changes."
+                                )
+                                # Schedule a restart after the message dialog is closed
+                                parent.after(200, lambda: APIKeyManager.restart_application(parent))
+                            else:
+                                messagebox.showinfo("API Key Set", "The OpenAI API Key has been updated successfully.")
                         except Exception as e:
                             messagebox.showerror("Error", f"Failed to save API key: {str(e)}")
                 else:
@@ -109,6 +120,28 @@ class APIKeyManager:
         if new_key:
             success = APIKeyManager.save_api_key(new_key)
             if success:
-                messagebox.showinfo("API Key Updated", "The OpenAI API Key has been updated successfully.")
+                # Check if the first time adding a key (no existing key)
+                is_first_key = not parent.has_api_key
+                
+                if is_first_key:
+                    messagebox.showinfo(
+                        "API Key Set - Restarting",
+                        "The OpenAI API Key has been saved. The application will now restart to apply changes."
+                    )
+                    # Schedule a restart after the message dialog is closed
+                    parent.after(200, lambda: APIKeyManager.restart_application(parent))
+                else:
+                    messagebox.showinfo("API Key Updated", "The OpenAI API Key has been updated successfully.")
+                
                 return new_key
-        return None 
+        return None
+    
+    @staticmethod
+    def restart_application(root):
+        """Restart the application."""
+        # Destroy the current instance
+        root.destroy()
+        
+        # Restart the application
+        python = sys.executable
+        os.execl(python, python, *sys.argv) 

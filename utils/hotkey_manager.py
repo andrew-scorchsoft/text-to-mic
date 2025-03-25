@@ -877,3 +877,27 @@ You can also access tone presets from Settings → Manage Tone Presets to modify
         
         # Add a close button
         ttk.Button(main_frame, text="Close", command=instruction_window.destroy).pack(pady=5) 
+
+    def handle_ai_edit_hotkey(self):
+        """Handle the hotkey for AI editing."""
+        # Check if API key is available
+        if not self.parent.has_api_key:
+            messagebox.showinfo(
+                "API Key Required",
+                "AI copyediting requires an OpenAI API key.\n\n"
+                "Please add your API key in Settings to use this feature."
+            )
+            return
+        
+        # Check if AI copy editing is enabled in settings
+        settings = self.parent.load_settings()
+        if not settings.get("chat_gpt_completion", False):
+            messagebox.showinfo(
+                "AI Copy Editing Disabled",
+                "AI copy editing is currently disabled in settings.\n\n"
+                "Please enable it in Settings → AI Copyediting before using this feature."
+            )
+            return
+        
+        # If we have an API key and AI is enabled, proceed with the AI editing
+        self.parent.apply_ai_to_input() 

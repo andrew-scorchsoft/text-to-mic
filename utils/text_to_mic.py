@@ -545,7 +545,7 @@ class TextToMic(tk.Tk):
             corner_radius=20,
             height=button_height,
             width=button_width,
-            fg_color="#058705",
+            fg_color="#777777" if not self.has_api_key else "#058705",  # Grey if no API key, green if API key exists
             font=("Arial", 13, "bold"),
             command=self.handle_record_button_click
         )
@@ -1131,6 +1131,26 @@ class TextToMic(tk.Tk):
 
     def apply_ai_to_input(self):
         """Apply AI to the current input text"""
+        # First check if we have an API key
+        if not self.has_api_key:
+            messagebox.showinfo(
+                "API Key Required",
+                "AI copyediting requires an OpenAI API key.\n\n"
+                "Please add your API key in Settings to use this feature."
+            )
+            return
+        
+        # Check if AI copy editing is enabled in settings
+        settings = self.load_settings()
+        if not settings.get("chat_gpt_completion", False):
+            messagebox.showinfo(
+                "AI Copy Editing Disabled",
+                "AI copy editing is currently disabled in settings.\n\n"
+                "Please enable it in Settings → AI Copyediting before using this feature."
+            )
+            return
+        
+        # If we have an API key and AI is enabled, proceed with the AI editing
         self.ai_editor.apply_ai()
 
     def chat_gpt_settings(self):
@@ -1264,7 +1284,7 @@ class TextToMic(tk.Tk):
         # This ensures proper button state updates regardless of how playback is triggered
         self.after(0, self.transcribe_audio, file_path, auto_play)
         
-    def transcribe_audio(self, file_path, auto_play = False):
+    def transcribe_audio(self, file_path, auto_play=False):
         try:
             with open(str(file_path), "rb") as audio_file:
                 transcription = self.client.audio.transcriptions.create(
@@ -1279,8 +1299,9 @@ class TextToMic(tk.Tk):
             self.text_input.delete("1.0", tk.END)
             self.text_input.insert("1.0", transcription.text)
 
-            if settings["chat_gpt_completion"] and settings["auto_apply_ai_to_recording"]:
-                auto_apply_ai = settings["auto_apply_ai_to_recording"]
+            # Check if AI processing is enabled AND we have an API key
+            if settings["chat_gpt_completion"] and settings["auto_apply_ai_to_recording"] and self.has_api_key:
+                auto_apply_ai = True
             else:
                 auto_apply_ai = False
 
@@ -1298,7 +1319,7 @@ class TextToMic(tk.Tk):
             if auto_play:
                 print(f"Triggering auto play with: {play_text} ")
                 # Use a slight delay to allow UI to update before playback starts
-                self.after(100, lambda: self.submit_text_helper(play_text = play_text))
+                self.after(100, lambda: self.submit_text_helper(play_text=play_text))
             
             print("Transcription Complete: The audio has been transcribed and the text has been placed in the input area.")
         
@@ -1453,7 +1474,9 @@ class TextToMic(tk.Tk):
                 self.submit_button.configure(text=f"Stop Audio ({cancel_shortcut})", fg_color="#d32f2f")
             else:
                 # Reset buttons to normal state
-                self.record_button.configure(text=f"Record Mic ({record_shortcut})", fg_color="#058705")
+                # Use grey color for record button if no API key
+                record_color = "#777777" if not self.has_api_key else "#058705"
+                self.record_button.configure(text=f"Record Mic ({record_shortcut})", fg_color=record_color)
                 self.submit_button.configure(text=f"Play Audio ({play_shortcut})", fg_color="#058705")
         except Exception as e:
             print(f"Error updating buttons: {e}")

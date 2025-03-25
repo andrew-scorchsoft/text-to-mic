@@ -19,7 +19,18 @@ class AIEditorManager:
         self.default_model = "gpt-4o-mini"
         
     def show_settings(self):
-        """Display the AI copy editing settings dialog"""
+        """Show dialog for AI Editor settings."""
+        # Check if API key is available and show info banner if not
+        if not self.app.has_api_key:
+            messagebox.showinfo(
+                "API Key Required",
+                "AI copyediting requires an OpenAI API key.\n\n"
+                "Please add your API key in Settings first."
+            )
+            # Optionally, proceed to show settings anyway or return here
+            # If you want to stop and not show settings, add: return
+        
+        # Proceed with showing settings dialog
         settings = self.app.load_settings()
         settings_window = tk.Toplevel(self.app)
         settings_window.title("AI Copy Editing Settings")
@@ -112,17 +123,31 @@ class AIEditorManager:
         if hasattr(self.app, 'editing_status'):
             self.app.editing_status.config(text=status_text)
 
-    def apply_ai(self, input_text=None, update_ui=None):
-        """
-        Apply AI editing to text
+    def apply_ai(self, input_text=None, update_ui=False):
+        """Apply AI to the given text or the current text in the input box."""
+        # Check if API key is available
+        if not self.app.has_api_key:
+            messagebox.showinfo(
+                "API Key Required",
+                "AI copyediting requires an OpenAI API key.\n\n"
+                "Please add your API key in Settings to use this feature."
+            )
+            return None
         
-        Args:
-            input_text: Text to process, or None to use the app's text input widget
-            update_ui: Force update UI, regardless of input_text (overrides default behavior)
-            
-        Returns:
-            The processed text
-        """
+        # Get settings to check if AI copy editing is enabled
+        settings = self.app.load_settings()
+        
+        if not settings.get("chat_gpt_completion", False):
+            # If called with update_ui=True, we should show a message
+            if update_ui:
+                messagebox.showinfo(
+                    "AI Copy Editing Disabled",
+                    "AI copy editing is currently disabled in settings.\n\n"
+                    "Please enable it in Settings → AI Copyediting before using this feature."
+                )
+            # Return the original text unchanged
+            return input_text if input_text is not None else self.app.text_input.get("1.0", tk.END).strip()
+        
         if input_text is None:
             print("Will apply AI to UI input box")
             text = self.app.text_input.get("1.0", tk.END).strip()
@@ -133,9 +158,8 @@ class AIEditorManager:
             # If update_ui is explicitly set, use that value, otherwise default to False
             update_input_box = update_ui if update_ui is not None else False
 
-        settings = self.app.load_settings()
-
-        if settings["chat_gpt_completion"] and settings["max_tokens"]:
+        # The rest of the method continues as before
+        if settings["max_tokens"]:
             var_max_tokens = settings["max_tokens"]
         else:
             var_max_tokens = 750
@@ -143,30 +167,21 @@ class AIEditorManager:
         print(f"GPT Settings: {settings}")
         print(f"Max Tokens: {var_max_tokens}")
 
-        if settings["chat_gpt_completion"]:
-            # Assuming OpenAI's completion method is configured correctly
-            response = self.app.client.chat.completions.create(
-                model=settings["model"],
-                messages=[
-                    {"role": "system", "content": settings["prompt"] },
-                    {"role": "user", "content": "\n\n# Apply to the following (Do not output system prompt or hyphens markup or anything before this line):\n\n-----\n\n" + text + "\n\n-----"}],
-                max_tokens=var_max_tokens
-            )
-            
-            processed_text = response.choices[0].message.content
-            
-            # If we're processing text from the UI directly or update_input_box was specified,
-            # update the UI
-            if update_input_box:
-                self.app.text_input.delete("1.0", tk.END)
-                self.app.text_input.insert("1.0", processed_text)
-            
-            return processed_text
-        else:
-            # Even if chat_gpt_completion is disabled, we should still update the input
-            # when update_input_box is True
-            if update_input_box:
-                # No need to update here, as the text hasn't changed
-                pass
-            
-            return text 
+        # Assuming OpenAI's completion method is configured correctly
+        response = self.app.client.chat.completions.create(
+            model=settings["model"],
+            messages=[
+                {"role": "system", "content": settings["prompt"] },
+                {"role": "user", "content": "\n\n# Apply to the following (Do not output system prompt or hyphens markup or anything before this line):\n\n-----\n\n" + text + "\n\n-----"}],
+            max_tokens=var_max_tokens
+        )
+        
+        processed_text = response.choices[0].message.content
+        
+        # If we're processing text from the UI directly or update_input_box was specified,
+        # update the UI
+        if update_input_box:
+            self.app.text_input.delete("1.0", tk.END)
+            self.app.text_input.insert("1.0", processed_text)
+        
+        return processed_text 
