@@ -9,6 +9,8 @@ import json
 import sys
 import time
 import requests
+import pyttsx3
+import tempfile
 
 from pystray import Icon as icon, MenuItem as item, Menu as menu
 from PIL import Image, ImageDraw, ImageTk
@@ -43,7 +45,6 @@ class TextToMic(tk.Tk):
         self.version = "1.4.0"
         self.title(f"Text to Mic by Scorchsoft.com - v{self.version}")
         
-        
         # Add these lines to set up the window icon
         icon_path = self.resource_path("assets/logo-circle-32.png")
         self.iconphoto(False, tk.PhotoImage(file=icon_path))
@@ -63,8 +64,19 @@ class TextToMic(tk.Tk):
         self.COLLAPSED_HEIGHT_WITH_BANNER = 620
         self.COLLAPSED_HEIGHT_NO_BANNER = 512
         
-        # Initial window geometry
+        # Initial window geometry - start with base size
         self.geometry(f"{self.BASE_WIDTH}x{self.BASE_HEIGHT_WITH_BANNER}")
+        
+        # Center the window immediately before any popups appear
+        self.center_window()
+        
+        # Withdraw window temporarily to prevent flashing before everything is ready
+        self.withdraw()
+        
+        # Initialize system TTS engine
+        self.engine = pyttsx3.init()
+        self.engine.setProperty('rate', 150)
+        self.system_voices = self.engine.getProperty('voices')
 
         self.available_models = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo"]
         self.default_model = "gpt-4o-mini"
@@ -108,14 +120,11 @@ class TextToMic(tk.Tk):
 
         # Get API key using APIKeyManager
         self.api_key = APIKeyManager.get_api_key(self)
-        if not self.api_key:
-            messagebox.showinfo("API Key Needed", "Please provide your OpenAI API Key.")
-            self.destroy()
-            return
-
+        self.has_api_key = bool(self.api_key)
         
-        self.client = OpenAI(api_key=self.api_key)
-
+        if self.has_api_key:
+            self.client = OpenAI(api_key=self.api_key)
+        
         # Initializing device index variables before they are used
         self.device_index = tk.StringVar(self)
         self.device_index_2 = tk.StringVar(self)
@@ -161,11 +170,40 @@ class TextToMic(tk.Tk):
         if self.banner_var.get():
             self.toggle_banner()
             
+        # Center the window on the screen
+        self.center_window()
+            
         # Schedule version check after app is fully loaded
         # Only check automatically if the setting is enabled
         if self.auto_check_version.get():
             # Delay the check to ensure UI is fully loaded
             self.after(2000, self.version_checker.check_version, False)
+
+        # At the end of __init__, after all initialization:
+        # Make the window visible again, now properly centered and with all elements loaded
+        self.deiconify()
+
+        # Set initial window height based on banner and presets state
+        self.update_window_size()
+
+    def center_window(self):
+        """Center the window on the screen."""
+        self.update_idletasks()  # Update window size info
+        
+        # Get screen width and height
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        
+        # Get window width and height
+        window_width = self.winfo_width()
+        window_height = self.winfo_height()
+        
+        # Calculate position coordinates
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        
+        # Set the position
+        self.geometry(f"+{x}+{y}")
 
     def ensure_config_directory(self):
         """Ensure the config directory exists."""
@@ -213,6 +251,11 @@ class TextToMic(tk.Tk):
         settings_menu.add_command(label="Keyboard Shortcuts", command=self.show_hotkey_settings)  
         settings_menu.add_command(label="Manage Tones", command=self.show_tone_presets_manager)
         settings_menu.add_separator()
+        
+        # Add presets toggle with checkbox
+        self.presets_visible_var = tk.BooleanVar(value=not self.presets_collapsed)
+        settings_menu.add_checkbutton(label="Show Presets", variable=self.presets_visible_var, command=self.toggle_presets_from_menu)
+        
         settings_menu.add_checkbutton(label="Auto Check for Updates", variable=self.auto_check_version, command=self.toggle_auto_version_check)
         settings_menu.add_checkbutton(label="Hide Scorchsoft Banner", variable=self.banner_var, command=self.toggle_banner)
 
@@ -234,13 +277,10 @@ class TextToMic(tk.Tk):
         help_menu.add_command(label="Check Version", command=self.check_version)
         help_menu.add_command(label="How to Use", command=self.show_instructions)
         help_menu.add_command(label="Terms of Use and Licence", command=self.show_terms_of_use)
-        
-        
 
     def show_hotkey_settings(self):
         """Show the hotkey settings dialog."""
         HotkeyManager.hotkey_settings_dialog(self)
-
 
     def change_api_key(self):
         """Change the API key using APIKeyManager."""
@@ -363,14 +403,21 @@ class TextToMic(tk.Tk):
         # Set fixed width for all labels
         label_width = 35  # Adjust this value as needed for your UI
         
-        self.voice_var = tk.StringVar(value="fable")
-        voices = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer']
+        # Initialize voice selection
+        self.available_voices = self.get_available_voices()
+        
+        # Determine default voice based on whether API key is available
+        default_voice = "fable" if self.has_api_key else self.available_voices[0] if self.available_voices else "[System] Default"
+        
+        self.voice_var = tk.StringVar(value=default_voice)
+        
         voice_label = ttk.Label(voice_frame, text="Voice:", width=label_width)
         voice_label.grid(column=0, row=1, sticky=tk.W, pady=(0, 5))
-        voice_menu = ttk.OptionMenu(voice_frame, self.voice_var, self.voice_var.get(), *voices)
+        voice_menu = ttk.OptionMenu(voice_frame, self.voice_var, self.voice_var.get(), *self.available_voices, command=self.on_voice_change)
         voice_menu.grid(column=1, row=1, sticky="ew", pady=(0, 5))
         voice_menu.config(width=dropdown_width, style='Compact.TMenubutton')
 
+        # Tone selection with warning for basic version
         self.tone_var = tk.StringVar(value=self.current_tone_name)
         tone_options = ["None"] + list(self.tone_presets.keys())
         tone_label = ttk.Label(voice_frame, text="Tone Preset:", width=label_width)
@@ -378,6 +425,19 @@ class TextToMic(tk.Tk):
         self.tone_menu = ttk.OptionMenu(voice_frame, self.tone_var, self.tone_var.get(), *tone_options, command=self.on_tone_change)
         self.tone_menu.grid(column=1, row=2, sticky="ew", pady=(0, 5))
         self.tone_menu.config(width=dropdown_width, style='Compact.TMenubutton')
+        
+        # Check if we should disable tone menu based on voice type
+        if self.voice_var.get().startswith("[System]"):
+            self.tone_menu.state(['disabled'])
+            self.tone_var.set("None")
+        
+        # Add warning label for basic version
+        if not self.has_api_key:
+            warning_label = ttk.Label(voice_frame, 
+                                    text="⚠️ Basic Version - Add API Key in Settings for full features", 
+                                    foreground="orange",
+                                    font=("Arial", 8, "italic"))
+            warning_label.grid(column=0, row=3, columnspan=2, sticky=tk.W, pady=(5, 0))
 
         # Separator between Voice Settings and Device Settings
         separator = ttk.Separator(main_frame, orient='horizontal')
@@ -641,17 +701,43 @@ class TextToMic(tk.Tk):
             
             # If no API key is found, prompt the user
             if not api_key:
-                self.show_instructions()  # Show the "How to Use" modal after setting the key
-                api_key = simpledialog.askstring("API Key", "Enter your OpenAI API Key:", parent=self)
-                if api_key:
-                    try:
-                        if platform.system() == 'Darwin':
-                            self.save_api_key_mac(api_key)
-                        else:
-                            self.save_api_key(api_key)
-                        messagebox.showinfo("API Key Set", "The OpenAI API Key has been updated successfully.")
-                    except Exception as e:
-                        messagebox.showerror("Error", f"Failed to save API key: {str(e)}")
+                # Check if this is a first-time run by checking for settings file
+                settings_file = Path(SettingsManager.get_settings_file_path())
+                first_time_run = not settings_file.exists()
+                
+                # No longer show instructions automatically
+                # if first_time_run:
+                #     self.show_instructions()  # Show the "How to Use" modal for first-time users
+                
+                response = messagebox.askyesno(
+                    "API Key Required",
+                    "An OpenAI API Key is required for full functionality, such as speech to text and OpenAI voices.\n\n"
+                    "Without an API key, you can still use basic system voices with text to speech.\n\n"
+                    "Would you like to enter an API key now?",
+                    parent=self
+                )
+                
+                if response:
+                    # Show instructions only when user wants to add an API key
+                    if first_time_run:
+                        self.show_instructions()
+                        
+                    api_key = simpledialog.askstring("API Key", "Enter your OpenAI API Key:", parent=self)
+                    if api_key:
+                        try:
+                            if platform.system() == 'Darwin':
+                                self.save_api_key_mac(api_key)
+                            else:
+                                self.save_api_key(api_key)
+                            messagebox.showinfo("API Key Set", "The OpenAI API Key has been updated successfully.")
+                        except Exception as e:
+                            messagebox.showerror("Error", f"Failed to save API key: {str(e)}")
+                else:
+                    messagebox.showinfo(
+                        "Limited Functionality",
+                        "You are using the basic version with system voices only.\n\n"
+                        "To access OpenAI voices and other features, you can add an API key later in Settings."
+                    )
         
         return api_key
 
@@ -698,7 +784,6 @@ class TextToMic(tk.Tk):
             self.submit_text_helper(play_text = play_text)
     
     def submit_text_helper(self, play_text = None):
-
         if play_text is None:
             #Load from GUI if play text not set
             text = self.text_input.get("1.0", tk.END).strip()
@@ -710,52 +795,96 @@ class TextToMic(tk.Tk):
             return
         
         selected_voice = self.voice_var.get()
+        is_system_voice = selected_voice.startswith("[System]")
         
-        # Check if a tone preset is selected and add it to the text
-        selected_tone_name = self.tone_var.get()
-        
-        # Get the actual tone instructions from the tone_presets dictionary
-        tone_instructions = None
-        if selected_tone_name != "None" and selected_tone_name in self.tone_presets:
-            tone_instructions = self.tone_presets[selected_tone_name]
+        if is_system_voice:
+            # Use system TTS
+            system_voice_name = selected_voice.replace("[System] ", "")
+            for voice in self.system_voices:
+                if voice.name == system_voice_name:
+                    self.engine.setProperty('voice', voice.id)
+                    break
+            
+            # Convert device names to indices
+            primary_index = self.available_devices.get(self.device_index.get(), None)
+            secondary_index = self.available_devices.get(self.device_index_2.get(), None) if self.device_index_2.get() != "None" else None
+
+            if primary_index is None:
+                messagebox.showerror("Error", "Primary device not selected or unavailable.")
+                return
+            
+            try:
+                # Create a proper temporary file with a simple name in current directory
+                temp_filename = "temp_speech_output.wav"
+                
+                # Generate audio using system TTS
+                self.engine.save_to_file(text, temp_filename)
+                self.engine.runAndWait()
+                
+                # Store as last audio file for replay
+                self.last_audio_file = temp_filename
+                
+                # Play the generated audio
+                if primary_index and secondary_index != "None" and secondary_index is not None:
+                    self.play_audio_multiplexed([temp_filename, temp_filename],
+                                              [primary_index, secondary_index])
+                else:
+                    self.play_audio_multiplexed([temp_filename],
+                                              [primary_index])
+                
+                # We'll leave the file for potential replay rather than deleting it immediately
+            except Exception as e:
+                messagebox.showerror("TTS Error", f"Failed to generate or play system voice: {str(e)}")
+                
         else:
-            tone_instructions = ""  # Empty string if "None" or not found
-        
-        # Convert device names to indices
-        primary_index = self.available_devices.get(self.device_index.get(), None)
-        secondary_index = self.available_devices.get(self.device_index_2.get(), None) if self.device_index_2.get() != "None" else None
-
-        if primary_index is None:
-            messagebox.showerror("Error", "Primary device not selected or unavailable.")
-            return
-        
-        print(f"Primary Index: {primary_index}, Secondary Index: {secondary_index}")
-        print(f"Selected Tone: {selected_tone_name}")
-        print(f"Tone Instructions: {tone_instructions}")
-        try:
-
-            response = self.client.audio.speech.create(
-                model="gpt-4o-mini-tts",
-                voice=selected_voice,
-                input=text,
-                instructions=tone_instructions,
-                response_format='wav'
-            )
-
-            self.last_audio_file = self.get_audio_file_path("last_output.wav")
-            response.stream_to_file(str(self.last_audio_file))
-
-            #Play to either two or a single stream
-            if primary_index and secondary_index != "None" and secondary_index is not None:
-                self.play_audio_multiplexed([self.last_audio_file, self.last_audio_file],
-                                            [primary_index, secondary_index])
+            # Use OpenAI TTS
+            if not self.has_api_key:
+                messagebox.showerror("API Key Required", 
+                                   "An OpenAI API Key is required for speech to text or to use OpenAI voices.\n\n"
+                                   "Please add your API key in Settings.\n\n"
+                                   "Note: You can still use text to speech with the system voices only.")
+                return
+                
+            # Check if a tone preset is selected and add it to the text
+            selected_tone_name = self.tone_var.get()
+            
+            # Get the actual tone instructions from the tone_presets dictionary
+            tone_instructions = None
+            if selected_tone_name != "None" and selected_tone_name in self.tone_presets:
+                tone_instructions = self.tone_presets[selected_tone_name]
             else:
-                self.play_audio_multiplexed([self.last_audio_file],
-                                            [primary_index])
+                tone_instructions = ""  # Empty string if "None" or not found
+            
+            # Convert device names to indices
+            primary_index = self.available_devices.get(self.device_index.get(), None)
+            secondary_index = self.available_devices.get(self.device_index_2.get(), None) if self.device_index_2.get() != "None" else None
 
+            if primary_index is None:
+                messagebox.showerror("Error", "Primary device not selected or unavailable.")
+                return
+            
+            try:
+                response = self.client.audio.speech.create(
+                    model="gpt-4o-mini-tts",
+                    voice=selected_voice,
+                    input=text,
+                    instructions=tone_instructions,
+                    response_format='wav'
+                )
 
-        except Exception as e:
-            messagebox.showerror("API Error", f"Failed to generate audio: {str(e)}")
+                self.last_audio_file = self.get_audio_file_path("last_output.wav")
+                response.stream_to_file(str(self.last_audio_file))
+
+                #Play to either two or a single stream
+                if primary_index and secondary_index != "None" and secondary_index is not None:
+                    self.play_audio_multiplexed([self.last_audio_file, self.last_audio_file],
+                                                [primary_index, secondary_index])
+                else:
+                    self.play_audio_multiplexed([self.last_audio_file],
+                                                [primary_index])
+
+            except Exception as e:
+                messagebox.showerror("API Error", f"Failed to generate audio: {str(e)}")
 
 
     def resample_audio(self, file_path, target_sample_rate):
@@ -796,47 +925,45 @@ class TextToMic(tk.Tk):
                     
                 try:
                     # Ensure the file_path is a string when opening the file
-                    wf = wave.open(str(file_path), 'rb')
+                    file_path_str = str(file_path)
+                    print(f"Opening audio file: {file_path_str}")
+                    
+                    # Make sure file exists
+                    if not os.path.exists(file_path_str):
+                        messagebox.showerror("File Not Found", f"Could not find audio file: {file_path_str}")
+                        continue
+                        
+                    wf = wave.open(file_path_str, 'rb')
                 except FileNotFoundError:
-                    messagebox.showerror("File Not Found", f"Could not find audio file: {file_path}")
+                    messagebox.showerror("File Not Found", f"Could not find audio file: {file_path_str}")
                     continue  # Skip this iteration and proceed with other files if any
                 except wave.Error as e:
-                    messagebox.showerror("Wave Error", f"Error reading audio file: {file_path}. Error: {str(e)}")
+                    messagebox.showerror("Wave Error", f"Error reading audio file: {file_path_str}. Error: {str(e)}")
+                    continue
+                except Exception as e:
+                    messagebox.showerror("File Error", f"Unexpected error with audio file: {str(e)}")
                     continue
 
                 try:
-                    # Ensure output audio sample rate matches that of the selected device
+                    # Get device info including default sample rate
                     device_info = self.get_device_info(device_index)
-                    sample_rate = int(device_info['defaultSampleRate'])  # Fetch default sample rate from device info
+                    sample_rate = int(device_info['defaultSampleRate']) if device_info else 44100
                     wf_frame_rate = wf.getframerate()
 
-                    print(f"Sample Rate: {sample_rate}")
-                    print(f"WF Sample Width: {wf_frame_rate}")
+                    print(f"Device Sample Rate: {sample_rate}")
+                    print(f"Audio Sample Rate: {wf_frame_rate}")
 
-                    if sample_rate is None:
-                        sample_rate = wf_frame_rate
-
-                    # Make the audio file sample rate match the device output sample rate
-                    # if there is a mismatch (prevents playback speed issues or crashes)
-                    if sample_rate != wf_frame_rate:
-                        # If mismatch, make a new resampled version that matches the output device
-                        resampled_file_path = self.resample_audio(str(file_path), sample_rate)
-                        # Update the playback file to the new resampled file
-                        file_path = resampled_file_path
-                        # Re-open the new file for processing
-                        wf.close()  # Close the original file first
-                        wf = wave.open(str(file_path), 'rb')
-                  
-                    # Create a stream from our file
+                    # Create a stream from our file with current frame rate (we'll handle resampling for mismatch later)
                     stream = self.current_playback_p.open(
                         format=self.current_playback_p.get_format_from_width(wf.getsampwidth()),
                         channels=wf.getnchannels(),
-                        rate=sample_rate,
+                        rate=wf_frame_rate,  # Use audio file's rate for now
                         output=True,
                         output_device_index=int(device_index)
                     )
                     
                 except Exception as e:
+                    print(f"Stream creation error: {e}")
                     messagebox.showerror("Stream Creation Error", f"Failed to create audio stream for device index {device_index}: {str(e)}")
                     wf.close()
                     continue
@@ -1036,7 +1163,14 @@ class TextToMic(tk.Tk):
         self.record_button.config(text=btn_text)
 
     def start_recording(self, play_confirm_sound=False):
-        input_device_index = self.input_device_index.get()  # Assuming input_device_index is a StringVar
+        if not self.has_api_key:
+            messagebox.showerror("API Key Required", 
+                    "An OpenAI API Key is required for speech to text or to use OpenAI voices.\n\n"
+                    "Please add your API key in Settings.\n\n"
+                    "Note: You can still use text to speech with the system voices only.")
+            return
+            
+        input_device_index = self.input_device_index.get()
         input_device_id = self.available_input_devices.get(input_device_index)
 
         if input_device_id is None:
@@ -1234,49 +1368,31 @@ class TextToMic(tk.Tk):
         if hasattr(self, 'version_checker') and self.version_checker.notification_visible:
             had_notification = True
         
+        # Toggle banner state
         settings = self.load_settings()
         hide_banner = self.banner_var.get()
-        
-        # Get current presets state
-        presets_visible = hasattr(self, 'presets_manager') and not self.presets_manager.presets_collapsed
-        
-        # Calculate width that preserves current width if manually resized
-        current_width = self.winfo_width()
-        width_to_use = max(current_width, self.BASE_WIDTH)
         
         if hide_banner:
             # Hide the banner
             self.banner_frame.grid_remove()
-            
-            # Set window geometry based on presets state
-            if presets_visible:
-                # Presets visible, banner hidden
-                self.geometry(f"{width_to_use}x{self.BASE_HEIGHT_NO_BANNER}")
-            else:
-                # Presets collapsed, banner hidden
-                self.geometry(f"{width_to_use}x{self.COLLAPSED_HEIGHT_NO_BANNER}")
         else:
             # Show the banner
             self.banner_frame.grid()
-            
-            # Set window geometry based on presets state
-            if presets_visible:
-                # Presets visible, banner visible
-                self.geometry(f"{width_to_use}x{self.BASE_HEIGHT_WITH_BANNER}")
-            else:
-                # Presets collapsed, banner visible
-                self.geometry(f"{width_to_use}x{self.COLLAPSED_HEIGHT_WITH_BANNER}")
         
         # Update the settings
         settings["hide_banner"] = hide_banner
         self.save_settings_to_JSON(settings)
         
+        # Update window size based on new banner state
+        self.update_window_size()
+        
         # Ensure input elements maintain consistent width
         self._maintain_consistent_width()
         
         # Make sure presets are laid out correctly if visible
-        if presets_visible and hasattr(self, 'presets_manager'):
+        if not self.presets_collapsed and hasattr(self, 'presets_manager'):
             self.presets_manager.refresh_presets_display()
+        
         
         # Ensure the presets button is correctly positioned using grid
         if hasattr(self, 'presets_manager') and hasattr(self.presets_manager, 'presets_button'):
@@ -1303,30 +1419,12 @@ class TextToMic(tk.Tk):
             # Update our local tracking of presets state
             self.presets_collapsed = self.presets_manager.presets_collapsed
             
-            # Get banner visibility state
-            banner_hidden = self.banner_var.get()
+            # Update the menu checkbox state to match
+            if hasattr(self, 'presets_visible_var'):
+                self.presets_visible_var.set(not self.presets_collapsed)
             
-            # Calculate a width that preserves the current width if it's larger than default
-            current_width = self.winfo_width()
-            width_to_use = max(current_width, self.BASE_WIDTH)
-            
-            # Set window geometry based on both states
-            if self.presets_collapsed:
-                # Presets collapsed - ensure minimum height with current width
-                if banner_hidden:
-                    # Banner hidden, presets collapsed
-                    self.geometry(f"{width_to_use}x{self.COLLAPSED_HEIGHT_NO_BANNER}")
-                else:
-                    # Banner visible, presets collapsed
-                    self.geometry(f"{width_to_use}x{self.COLLAPSED_HEIGHT_WITH_BANNER}")
-            else:
-                # Presets expanded - use full height with current width
-                if banner_hidden:
-                    # Banner hidden, presets expanded
-                    self.geometry(f"{width_to_use}x{self.BASE_HEIGHT_NO_BANNER}")
-                else:
-                    # Banner visible, presets expanded
-                    self.geometry(f"{width_to_use}x{self.BASE_HEIGHT_WITH_BANNER}")
+            # Update window size based on new presets state
+            self.update_window_size()
             
             # Refresh presets display if they're visible
             if not self.presets_collapsed:
@@ -1445,5 +1543,80 @@ class TextToMic(tk.Tk):
         
         # Update and refresh all frames to apply the new layout
         self.update_idletasks()
+
+    def get_available_voices(self):
+        """Get list of available voices, including system voices if no API key."""
+        voices = []
+        if self.has_api_key:
+            # Add OpenAI voices
+            voices.extend(['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer'])
+        
+        # Add system voices with [System] prefix
+        try:
+            if hasattr(self, 'system_voices') and self.system_voices:
+                for voice in self.system_voices:
+                    voices.append(f"[System] {voice.name}")
+            
+            # If no system voices were found, add a default system voice
+            if not voices:
+                voices.append("[System] Default")
+        except Exception as e:
+            print(f"Error loading system voices: {e}")
+            # Ensure we have at least one voice option
+            if not voices:
+                voices.append("[System] Default")
+        
+        return voices
+
+    def on_voice_change(self, *args):
+        """Handle voice selection change."""
+        selected_voice = self.voice_var.get()
+        is_system_voice = selected_voice.startswith("[System]")
+        
+        # Update tone menu state based on voice type
+        if is_system_voice:
+            self.tone_menu.state(['disabled'])
+            self.tone_var.set("None")
+        else:
+            self.tone_menu.state(['!disabled'])
+
+    def update_window_size(self):
+        """Update window size based on current banner and presets state."""
+        # Calculate a width that preserves the current width if it's larger than default
+        current_width = self.winfo_width()
+        width_to_use = max(current_width, self.BASE_WIDTH)
+        
+        # Determine appropriate height based on current states
+        banner_hidden = self.banner_var.get()
+        
+        if self.presets_collapsed:
+            # Presets collapsed
+            if banner_hidden:
+                # Banner hidden, presets collapsed
+                height = self.COLLAPSED_HEIGHT_NO_BANNER
+            else:
+                # Banner visible, presets collapsed
+                height = self.COLLAPSED_HEIGHT_WITH_BANNER
+        else:
+            # Presets expanded
+            if banner_hidden:
+                # Banner hidden, presets expanded
+                height = self.BASE_HEIGHT_NO_BANNER
+            else:
+                # Banner visible, presets expanded
+                height = self.BASE_HEIGHT_WITH_BANNER
+            
+        # Update geometry and re-center
+        self.geometry(f"{width_to_use}x{height}")
+        self.center_window()
+
+    def toggle_presets_from_menu(self):
+        """Toggle presets visibility from menu, ensuring button state is updated."""
+        # Toggle presets
+        self.toggle_presets()
+        
+        # Make sure the checkbox state matches the actual state
+        # (in case toggling failed for some reason)
+        self.presets_visible_var.set(not self.presets_collapsed)
 
 

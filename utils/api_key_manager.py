@@ -63,17 +63,42 @@ class APIKeyManager:
             
             # If no API key is found, prompt the user
             if not api_key and parent:
-                parent.show_instructions()  # Show the "How to Use" modal after setting the key
-                api_key = simpledialog.askstring("API Key", "Enter your OpenAI API Key:", parent=parent)
-                if api_key:
-                    try:
-                        if platform.system() == 'Darwin':
-                            APIKeyManager.save_api_key_mac(api_key)
-                        else:
-                            APIKeyManager.save_api_key(api_key)
-                        messagebox.showinfo("API Key Set", "The OpenAI API Key has been updated successfully.")
-                    except Exception as e:
-                        messagebox.showerror("Error", f"Failed to save API key: {str(e)}")
+                # Check if this is a first-time run by checking for settings file
+                settings_file = Path(parent.get_settings_file_path("settings.json"))
+                first_time_run = not settings_file.exists()
+                
+                # Don't show instructions automatically
+                # parent.show_instructions()  # Show the "How to Use" modal after setting the key
+                
+                response = messagebox.askyesno(
+                    "API Key Required",
+                    "An OpenAI API Key is required for full functionality, such as speech to text and OpenAI voices.\n\n"
+                    "Without an API key, you can still use basic system voices with text to speech.\n\n"
+                    "Would you like to enter an API key now?",
+                    parent=parent
+                )
+                
+                if response:
+                    # Show instructions only when user wants to add an API key
+                    if first_time_run:
+                        parent.show_instructions()
+                        
+                    api_key = simpledialog.askstring("API Key", "Enter your OpenAI API Key:", parent=parent)
+                    if api_key:
+                        try:
+                            if platform.system() == 'Darwin':
+                                APIKeyManager.save_api_key_mac(api_key)
+                            else:
+                                APIKeyManager.save_api_key(api_key)
+                            messagebox.showinfo("API Key Set", "The OpenAI API Key has been updated successfully.")
+                        except Exception as e:
+                            messagebox.showerror("Error", f"Failed to save API key: {str(e)}")
+                else:
+                    messagebox.showinfo(
+                        "Limited Functionality",
+                        "You are using the basic version with system voices only.\n\n"
+                        "To access OpenAI voices and other features, you can add an API key later in Settings."
+                    )
         
         return api_key
     
