@@ -42,7 +42,7 @@ class TextToMic(tk.Tk):
     def __init__(self):
         super().__init__()
 
-        self.version = "1.4.0"
+        self.version = "1.4.1"
         self.title(f"Text to Mic by Scorchsoft.com - v{self.version}")
         
         # Add these lines to set up the window icon
